@@ -6,6 +6,13 @@
     name="viewport"
     content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1,user-scalable=no"
   />
+
+  <!-- PWA / iOS "Agregar a pantalla de inicio" (quita barras en modo web-app) -->
+  <meta name="theme-color" content="#0b1020" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="MiniJuego" />
+
   <title>Un mini-juego para vos ❤️</title>
 
   <style>
@@ -29,9 +36,19 @@
       margin:0;
       background:var(--bg);
       font-family:system-ui, -apple-system, Segoe UI, Roboto, Arial;
-      overflow:hidden;
-      touch-action: manipulation;
+      overflow:hidden;                 /* clave */
+      overscroll-behavior: none;       /* evita rebote */
+      touch-action: manipulation;      /* menos gestos raros */
       -webkit-tap-highlight-color: transparent;
+    }
+
+    body{
+      position: fixed;  /* evita scroll que revela barras */
+      inset: 0;
+      width: 100vw;
+      height: 100vh;
+      height: 100svh;
+      height: 100dvh;
     }
 
     /* FULLSCREEN real */
@@ -40,13 +57,12 @@
       inset: 0;
       width: 100vw;
       height: 100vh;
-      height: 100svh; /* iOS Safari moderno */
-      height: 100dvh; /* Chrome/Android moderno */
+      height: 100svh;
+      height: 100dvh;
       background: var(--bg);
       overflow: hidden;
     }
 
-    /* Canvas ocupa todo el viewport */
     canvas{
       position: absolute;
       inset: 0;
@@ -57,7 +73,6 @@
         radial-gradient(900px 600px at 25% 20%, rgba(124,92,255,.28), transparent 60%),
         radial-gradient(900px 600px at 75% 30%, rgba(255,77,141,.22), transparent 60%),
         linear-gradient(180deg, #0b1020, #260a2a);
-      /* Sin bordes ni sombras para que sea full */
       border-radius: 0;
     }
 
@@ -98,10 +113,7 @@
       box-sizing:border-box;
     }
 
-    .hint{
-      opacity:.85;
-      white-space:nowrap;
-    }
+    .hint{ opacity:.85; white-space:nowrap; }
 
     button{
       border:1px solid var(--btn-bd);
@@ -117,15 +129,9 @@
     button:hover{background:var(--btn-bg-h); transform: translateY(-1px)}
     button:active{transform: translateY(0px) scale(.98)}
 
-    /* Compacto cuando es celular horizontal */
     @media (max-height: 420px){
       .pill{ padding:8px 10px; font-size:12px; gap:8px; }
       button{ padding:7px 9px; border-radius:10px; }
-    }
-
-    @media (prefers-reduced-motion: reduce){
-      button{ transition:none; }
-      .hud{ transition:none; }
     }
 
     /* Overlay para vertical */
@@ -140,10 +146,8 @@
                calc(20px + var(--safe-bot)) calc(20px + var(--safe-left));
       box-sizing:border-box;
     }
-    .rotate-overlay.show{
-      display:grid;
-      place-items:center;
-    }
+    .rotate-overlay.show{ display:grid; place-items:center; }
+
     .rotate-card{
       width: min(520px, 100%);
       background: rgba(255,255,255,.08);
@@ -153,45 +157,32 @@
       color: rgba(255,255,255,.92);
       text-align:center;
     }
-    .rotate-title{
-      font-size: 20px;
-      font-weight: 800;
-      margin: 0 0 6px 0;
-    }
-    .rotate-sub{
-      margin: 0 0 12px 0;
-      opacity: .85;
-      line-height: 1.35;
-    }
+    .rotate-title{ font-size: 20px; font-weight: 800; margin: 0 0 6px 0; }
+    .rotate-sub{ margin: 0 0 12px 0; opacity: .85; line-height: 1.35; }
+
     .phone{
-      width: 84px;
-      height: 150px;
+      width: 84px; height: 150px;
       border-radius: 18px;
       border: 2px solid rgba(255,255,255,.35);
       margin: 10px auto 14px;
       position: relative;
-      transform: rotate(0deg);
       animation: wiggle 1.25s ease-in-out infinite;
     }
     .phone::before{
       content:"";
       position:absolute;
-      left:50%;
-      top:10px;
+      left:50%; top:10px;
       transform: translateX(-50%);
-      width: 34px;
-      height: 6px;
+      width: 34px; height: 6px;
       border-radius: 99px;
       background: rgba(255,255,255,.22);
     }
     .phone::after{
       content:"";
       position:absolute;
-      left:50%;
-      bottom:10px;
+      left:50%; bottom:10px;
       transform: translateX(-50%);
-      width: 22px;
-      height: 22px;
+      width: 22px; height: 22px;
       border-radius: 50%;
       border: 2px solid rgba(255,255,255,.18);
     }
@@ -231,41 +222,64 @@
 <script>
 (() => {
   const canvas = document.getElementById("c");
+  const stage  = document.getElementById("stage");
   const ctx = canvas.getContext("2d", { alpha: true });
 
   const hud = document.getElementById("hud");
   const rotateOverlay = document.getElementById("rotateOverlay");
 
+  // ===== Fullscreen helpers (oculta UI en Android/Chrome, en iOS solo en modo "Agregar al inicio") =====
+  function isFullscreen(){
+    return !!(document.fullscreenElement || document.webkitFullscreenElement);
+  }
+
+  async function requestFullscreen(){
+    try{
+      const el = stage;
+      // Chrome Android: navigationUI:'hide' suele ayudar
+      if (el.requestFullscreen) await el.requestFullscreen({ navigationUI: "hide" });
+      else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen(); // Safari desktop
+    }catch(_){}
+  }
+
+  async function lockLandscape(){
+    // Funciona en Android/Chrome usualmente (en iOS casi nunca)
+    try{
+      if (screen.orientation && screen.orientation.lock) {
+        await screen.orientation.lock("landscape");
+      }
+    }catch(_){}
+  }
+
+  function hideBrowserUIAggressive(){
+    // No garantiza, pero ayuda a que Chrome esconda barras
+    window.scrollTo(0, 1);
+    // reintento corto por si cambió viewport
+    setTimeout(() => window.scrollTo(0, 1), 50);
+  }
+
   // ===== Resolución lógica del juego =====
   const BASE_W = 980;
   const BASE_H = 560;
-  const BASE_RATIO = BASE_W / BASE_H;
 
   function getDPR(){
     return Math.min(2, window.devicePixelRatio || 1);
   }
 
-  // FULLSCREEN: el canvas ocupa TODO. Nosotros adaptamos la resolución interna para mantener ratio
-  // usando "cover" (que llena la pantalla aunque recorte un poco) para que se vea más "pantalla completa".
+  // MODO B (CONTAIN): no recorta, centra, puede dejar barras
   function resizeCanvas(){
-    const stage = document.getElementById("stage");
     const rect = stage.getBoundingClientRect();
-
     const cssW = Math.max(1, rect.width);
     const cssH = Math.max(1, rect.height);
 
-    // Tamaño real del canvas (backing store)
     const dpr = getDPR();
     canvas.width  = Math.round(cssW * dpr);
     canvas.height = Math.round(cssH * dpr);
 
-    // Queremos que las coords sean BASE_W x BASE_H, pero usando COVER:
-    // Escalamos para llenar completo (puede recortar arriba/abajo o lados).
     const scaleX = canvas.width  / BASE_W;
     const scaleY = canvas.height / BASE_H;
-    const scale = Math.max(scaleX, scaleY); // cover
+    const scale  = Math.min(scaleX, scaleY); // CONTAIN ✅
 
-    // Centramos el "mundo" base en el canvas real
     const worldPxW = BASE_W * scale;
     const worldPxH = BASE_H * scale;
     const offsetX = (canvas.width  - worldPxW) / 2;
@@ -276,13 +290,13 @@
     ctx.scale(scale, scale);
   }
 
-  // Anti zoom doble tap (iOS)
+  // Anti zoom doble tap iOS
   let lastTap = 0;
   canvas.addEventListener("touchend", (e) => {
     const now = Date.now();
     if (now - lastTap < 300) e.preventDefault();
     lastTap = now;
-  }, { passive: false });
+  }, { passive:false });
 
   // ===== PERSONALIZÁ ACÁ =====
   const NOMBRE = "mi vida";
@@ -305,75 +319,56 @@
   let tScene = 0;
   let last = performance.now();
 
-  // carta
   let typed = "";
   let typeIndex = 0;
   let typeTimer = 0;
 
-  // corazones
   const hearts = [];
 
-  // ambiente
   const groundY = 420;
   const bench = { x: 490, y: 360, w: 420, h: 18 };
 
-  // Pose variables (suavizadas)
   const A = { name:"A", x: 430, y: 320, kneel:0, kiss:0, hug:0 };
   const B = { name:"B", x: 555, y: 320, kneel:0, kiss:0, hug:0 };
-
   let ax = A.x, bx = B.x;
 
-  // Cámara
   const cam = { x:490, y:280, zoom:1 };
   const camTarget = { x:490, y:280, zoom:1 };
 
-  // UI
   const hint = document.getElementById("hint");
   const btnBgm = document.getElementById("btnBgm");
   const bgm = document.getElementById("bgm");
 
-  // Música auto (limitaciones móviles)
+  // Música auto
   bgm.volume = 0.30;
   let bgmPlaying = false;
   let userMuted = false;
 
   async function tryStartBgm(){
     if (userMuted || bgmPlaying) return;
-    try{
-      await bgm.play();
-      bgmPlaying = true;
-      btnBgm.textContent = "⏸️ Música";
-    }catch(_){
-      btnBgm.textContent = "🎵 Música: Tocá para iniciar";
-    }
+    try{ await bgm.play(); bgmPlaying = true; btnBgm.textContent = "⏸️ Música"; }
+    catch(_){ btnBgm.textContent = "🎵 Música: Tocá para iniciar"; }
   }
 
   btnBgm.addEventListener("click", async () => {
-    ensureAudio();
-    sfxClick();
+    ensureAudio(); sfxClick();
     try{
       if(!bgmPlaying){
         userMuted = false;
-        await bgm.play();
-        bgmPlaying = true;
+        await bgm.play(); bgmPlaying = true;
         btnBgm.textContent = "⏸️ Música";
       }else{
-        bgm.pause();
-        bgmPlaying = false;
+        bgm.pause(); bgmPlaying = false;
         userMuted = true;
         btnBgm.textContent = "▶️ Música";
       }
-    }catch(_){
-      btnBgm.textContent = "🎵 Música: Tocá para iniciar";
-    }
+    }catch(_){ btnBgm.textContent = "🎵 Música: Tocá para iniciar"; }
   });
 
   // WebAudio FX
   let audioCtx = null;
   function ensureAudio(){
-    if(!audioCtx){
-      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    }
+    if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     if(audioCtx.state === "suspended") audioCtx.resume();
   }
 
@@ -384,15 +379,12 @@
     const g = audioCtx.createGain();
     o.type = type;
     o.frequency.setValueAtTime(freq, t0);
-    if(slideTo){
-      o.frequency.exponentialRampToValueAtTime(Math.max(20, slideTo), t0 + dur);
-    }
+    if(slideTo) o.frequency.exponentialRampToValueAtTime(Math.max(20, slideTo), t0 + dur);
     g.gain.setValueAtTime(0.0001, t0);
     g.gain.exponentialRampToValueAtTime(vol, t0 + 0.01);
     g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
     o.connect(g); g.connect(audioCtx.destination);
-    o.start(t0);
-    o.stop(t0 + dur + 0.02);
+    o.start(t0); o.stop(t0 + dur + 0.02);
   }
 
   function playNoiseBurst({dur=0.10, vol=0.10, highpass=900}){
@@ -405,21 +397,14 @@
       const env = Math.pow(1 - i/bufferSize, 2.2);
       data[i] = (Math.random()*2 - 1) * env;
     }
-    const src = audioCtx.createBufferSource();
-    src.buffer = buffer;
-
-    const hp = audioCtx.createBiquadFilter();
-    hp.type = "highpass";
-    hp.frequency.setValueAtTime(highpass, t0);
-
+    const src = audioCtx.createBufferSource(); src.buffer = buffer;
+    const hp = audioCtx.createBiquadFilter(); hp.type="highpass"; hp.frequency.setValueAtTime(highpass, t0);
     const g = audioCtx.createGain();
     g.gain.setValueAtTime(0.0001, t0);
     g.gain.exponentialRampToValueAtTime(vol, t0 + 0.01);
     g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-
     src.connect(hp); hp.connect(g); g.connect(audioCtx.destination);
-    src.start(t0);
-    src.stop(t0 + dur + 0.02);
+    src.start(t0); src.stop(t0 + dur + 0.02);
   }
 
   function sfxClick(){ playTone({freq:520, type:"triangle", dur:0.06, vol:0.10, slideTo:640}); }
@@ -442,10 +427,7 @@
 
   // HUD auto-hide
   let hudTimer = null;
-  function showHud(){
-    hud.classList.remove("hidden");
-    scheduleHideHud();
-  }
+  function showHud(){ hud.classList.remove("hidden"); scheduleHideHud(); }
   function scheduleHideHud(){
     if(hudTimer) clearTimeout(hudTimer);
     hudTimer = setTimeout(() => hud.classList.add("hidden"), 2000);
@@ -454,7 +436,7 @@
     window.addEventListener(evt, () => showHud(), { passive:true });
   });
 
-  // Overlay orientación
+  // Orientación
   function isPortrait(){ return window.innerHeight > window.innerWidth; }
   let lockedPortrait = false;
   function updateOrientationOverlay(){
@@ -464,7 +446,6 @@
     rotateOverlay.setAttribute("aria-hidden", portrait ? "false" : "true");
   }
 
-  // ===== Juego =====
   function setHint(s){ hint.textContent = s; }
 
   function reset(){
@@ -488,27 +469,20 @@
   function clamp(x,a,b){ return Math.max(a, Math.min(b,x)); }
   function easeOut(t){ return 1 - Math.pow(1-t, 3); }
   function easeInOut(t){ return t<.5 ? 4*t*t*t : 1 - Math.pow(-2*t+2,3)/2; }
-  function damp(current, target, lambda, dt){
-    return lerp(current, target, 1 - Math.exp(-lambda * dt));
-  }
+  function damp(current, target, lambda, dt){ return lerp(current, target, 1 - Math.exp(-lambda * dt)); }
 
   function spawnHeart(x,y,scale=1){
     hearts.push({
-      x,y,
-      vx: (-0.6 + Math.random()*1.2),
-      vy: (-1.6 - Math.random()*1.2),
-      a: 0.95,
-      s: (10 + Math.random()*12) * scale,
-      rot: Math.random()*Math.PI,
-      vr: (-0.06 + Math.random()*0.12),
+      x,y, vx:(-0.6 + Math.random()*1.2), vy:(-1.6 - Math.random()*1.2),
+      a:0.95, s:(10 + Math.random()*12)*scale,
+      rot:Math.random()*Math.PI, vr:(-0.06 + Math.random()*0.12),
     });
     if(hearts.length>260) hearts.shift();
   }
 
   function drawHeart(x,y,s,rot,a){
     ctx.save();
-    ctx.translate(x,y);
-    ctx.rotate(rot);
+    ctx.translate(x,y); ctx.rotate(rot);
     ctx.globalAlpha = a;
     ctx.beginPath();
     const k = s/16;
@@ -538,41 +512,27 @@
 
   // Fondo
   const clouds = Array.from({length:6}, (_,i) => ({
-    x: 120 + i*150,
-    y: 95 + (i%3)*22,
-    s: 0.9 + (i%4)*0.12,
-    sp: 6 + (i%3)*4
+    x: 120 + i*150, y: 95 + (i%3)*22, s: 0.9 + (i%4)*0.12, sp: 6 + (i%3)*4
   }));
-
-  const lanterns = [{x: 220, y: 300},{x: 760, y: 295}];
+  const lanterns = [{x:220,y:300},{x:760,y:295}];
 
   function drawCloud(cx, cy, s){
-    ctx.save();
-    ctx.translate(cx, cy);
-    ctx.scale(s,s);
-    ctx.globalAlpha = 0.12;
-    ctx.fillStyle = "white";
+    ctx.save(); ctx.translate(cx, cy); ctx.scale(s,s);
+    ctx.globalAlpha = 0.12; ctx.fillStyle = "white";
     ctx.beginPath();
     ctx.ellipse(-30, 0, 34, 22, 0, 0, Math.PI*2);
     ctx.ellipse(0, -10, 42, 28, 0, 0, Math.PI*2);
     ctx.ellipse(35, 0, 30, 20, 0, 0, Math.PI*2);
     ctx.ellipse(5, 10, 46, 22, 0, 0, Math.PI*2);
-    ctx.fill();
-    ctx.restore();
+    ctx.fill(); ctx.restore();
   }
 
   function drawTree(x, baseY, s){
-    ctx.save();
-    ctx.translate(x, baseY);
-    ctx.scale(s,s);
+    ctx.save(); ctx.translate(x, baseY); ctx.scale(s,s);
     ctx.fillStyle = "rgba(0,0,0,.18)";
-    ctx.beginPath();
-    ctx.ellipse(0, 65, 80, 18, 0, 0, Math.PI*2);
-    ctx.fill();
-    ctx.fillStyle = "rgba(255,255,255,.10)";
-    roundRect(-14, 0, 28, 80, 10); ctx.fill();
-    ctx.fillStyle = "rgba(255,77,141,.10)";
-    ctx.beginPath(); ctx.ellipse(0, -20, 80, 65, 0, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(0, 65, 80, 18, 0, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = "rgba(255,255,255,.10)"; roundRect(-14, 0, 28, 80, 10); ctx.fill();
+    ctx.fillStyle = "rgba(255,77,141,.10)"; ctx.beginPath(); ctx.ellipse(0, -20, 80, 65, 0, 0, Math.PI*2); ctx.fill();
     ctx.fillStyle = "rgba(124,92,255,.10)";
     ctx.beginPath(); ctx.ellipse(-30, -10, 60, 50, 0, 0, Math.PI*2); ctx.fill();
     ctx.beginPath(); ctx.ellipse(35, -5, 55, 45, 0, 0, Math.PI*2); ctx.fill();
@@ -581,33 +541,21 @@
 
   function drawLantern(x,y,glow=1){
     ctx.save();
-    ctx.strokeStyle = "rgba(255,255,255,.18)";
-    ctx.lineWidth = 4;
-    ctx.beginPath();
-    ctx.moveTo(x, y);
-    ctx.lineTo(x, y-100);
-    ctx.stroke();
-    ctx.fillStyle = "rgba(255,255,255,.14)";
-    roundRect(x-16, y-128, 32, 28, 8); ctx.fill();
+    ctx.strokeStyle = "rgba(255,255,255,.18)"; ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y-100); ctx.stroke();
+    ctx.fillStyle = "rgba(255,255,255,.14)"; roundRect(x-16, y-128, 32, 28, 8); ctx.fill();
     ctx.globalAlpha = 0.18 * glow;
     const g = ctx.createRadialGradient(x, y-114, 2, x, y-114, 60);
     g.addColorStop(0, "rgba(255,220,170,.9)");
     g.addColorStop(1, "rgba(255,220,170,0)");
-    ctx.fillStyle = g;
-    ctx.beginPath();
-    ctx.arc(x, y-114, 60, 0, Math.PI*2);
-    ctx.fill();
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y-114, 60, 0, Math.PI*2); ctx.fill();
     ctx.restore();
   }
 
   function drawFence(){
-    ctx.save();
-    ctx.globalAlpha = 0.10;
-    ctx.fillStyle = "white";
+    ctx.save(); ctx.globalAlpha = 0.10; ctx.fillStyle = "white";
     const y = groundY - 6;
-    for(let x=0; x<=980; x+=26){
-      roundRect(x, y, 10, 40, 4); ctx.fill();
-    }
+    for(let x=0; x<=980; x+=26){ roundRect(x, y, 10, 40, 4); ctx.fill(); }
     ctx.globalAlpha = 0.08;
     roundRect(0, y+12, 980, 6, 6); ctx.fill();
     roundRect(0, y+28, 980, 6, 6); ctx.fill();
@@ -621,11 +569,8 @@
       const y = groundY + 22 + ((i*19)%16);
       ctx.globalAlpha = 0.14;
       ctx.fillStyle = (i%2===0) ? "rgba(255,77,141,.9)" : "rgba(124,92,255,.9)";
-      ctx.beginPath();
-      ctx.arc(x, y, 3, 0, Math.PI*2);
-      ctx.fill();
-      ctx.globalAlpha = 0.08;
-      ctx.fillStyle = "rgba(180,255,200,.9)";
+      ctx.beginPath(); ctx.arc(x, y, 3, 0, Math.PI*2); ctx.fill();
+      ctx.globalAlpha = 0.08; ctx.fillStyle = "rgba(180,255,200,.9)";
       ctx.fillRect(x-1, y, 2, 10);
     }
     ctx.restore();
@@ -641,8 +586,7 @@
     for(let i=0;i<48;i++){
       const x = (i*97)%980;
       const y = (i*43)%220;
-      ctx.globalAlpha = 0.22;
-      ctx.fillStyle = "white";
+      ctx.globalAlpha = 0.22; ctx.fillStyle = "white";
       ctx.fillRect(x, y, 2, 2);
     }
     ctx.globalAlpha = 1;
@@ -655,13 +599,10 @@
     ctx.beginPath(); ctx.arc(810, 110, 110, 0, Math.PI*2); ctx.fill();
     ctx.globalAlpha = 1;
 
-    ctx.fillStyle = "rgba(0,0,0,.18)";
-    ctx.fillRect(0, groundY, 980, 560-groundY);
+    ctx.fillStyle = "rgba(0,0,0,.18)"; ctx.fillRect(0, groundY, 980, 560-groundY);
 
     ctx.fillStyle = "rgba(255,255,255,.05)";
-    ctx.beginPath();
-    ctx.ellipse(490, groundY+35, 390, 58, 0, 0, Math.PI*2);
-    ctx.fill();
+    ctx.beginPath(); ctx.ellipse(490, groundY+35, 390, 58, 0, 0, Math.PI*2); ctx.fill();
 
     drawFence();
     drawTree(140, groundY-5, 1.1);
@@ -673,11 +614,9 @@
     drawFlowers();
 
     ctx.fillStyle = "rgba(255,255,255,.12)";
-    roundRect(bench.x - bench.w/2, bench.y, bench.w, bench.h, 10);
-    ctx.fill();
+    roundRect(bench.x - bench.w/2, bench.y, bench.w, bench.h, 10); ctx.fill();
     ctx.fillStyle = "rgba(255,255,255,.08)";
-    roundRect(bench.x - bench.w/2 + 40, bench.y-50, bench.w-80, 14, 10);
-    ctx.fill();
+    roundRect(bench.x - bench.w/2 + 40, bench.y-50, bench.w-80, 14, 10); ctx.fill();
 
     ctx.fillStyle = "rgba(255,255,255,.10)";
     roundRect(bench.x - bench.w/2 + 60, bench.y+12, 18, 60, 8); ctx.fill();
@@ -685,40 +624,29 @@
   }
 
   function drawStickman(p){
-    const headR = 16;
-    const line = 4;
-
+    const headR = 16, line = 4;
     let y = p.y;
-    const kneel = p.kneel;
-    const hug = p.hug;
-    const kiss = p.kiss;
+    const kneel = p.kneel, hug = p.hug, kiss = p.kiss;
 
     const phase = performance.now()/520 + (p.name==="A"?0:1.7);
     const idle = Math.sin(phase) * 2.2;
     y += idle * 0.6;
-
     y += lerp(0, 34, kneel);
 
     ctx.lineCap = "round";
     ctx.lineWidth = line;
     ctx.strokeStyle = "rgba(255,255,255,.92)";
 
-    ctx.beginPath();
-    ctx.arc(p.x, y - 48 + idle*0.35, headR, 0, Math.PI*2);
-    ctx.stroke();
+    ctx.beginPath(); ctx.arc(p.x, y - 48 + idle*0.35, headR, 0, Math.PI*2); ctx.stroke();
 
-    ctx.globalAlpha = 0.7;
-    ctx.fillStyle = "white";
+    ctx.globalAlpha = 0.7; ctx.fillStyle = "white";
     ctx.beginPath();
     ctx.arc(p.x-6, y-52 + idle*0.25, 2, 0, Math.PI*2);
     ctx.arc(p.x+6, y-52 + idle*0.25, 2, 0, Math.PI*2);
     ctx.fill();
     ctx.globalAlpha = 1;
 
-    ctx.beginPath();
-    ctx.moveTo(p.x, y - 32);
-    ctx.lineTo(p.x, y + 28);
-    ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(p.x, y - 32); ctx.lineTo(p.x, y + 28); ctx.stroke();
 
     const armT = hug;
     const swing = (1-armT) * Math.sin(phase*1.2) * 1.8;
@@ -730,10 +658,8 @@
     const ay2 = lerp(y - 8 - swing, y + 10, armT);
 
     ctx.beginPath();
-    ctx.moveTo(p.x, y - 10);
-    ctx.lineTo(ax1, ay1);
-    ctx.moveTo(p.x, y - 10);
-    ctx.lineTo(ax2, ay2);
+    ctx.moveTo(p.x, y - 10); ctx.lineTo(ax1, ay1);
+    ctx.moveTo(p.x, y - 10); ctx.lineTo(ax2, ay2);
     ctx.stroke();
 
     const kneeUp = kneel;
@@ -815,6 +741,7 @@
     ctx.fillStyle = "rgba(0,0,0,.55)";
     ctx.font = "13px system-ui, -apple-system, Segoe UI, Roboto, Arial";
     ctx.fillText("Tocá para cerrar (o tocá durante lectura para mostrar todo)", x+28, y+h-24);
+
     ctx.restore();
   }
 
@@ -863,10 +790,7 @@
       camTarget.y = 250;
       camTarget.zoom = 1.08;
 
-      if(!fired.kiss && tScene > 0.35){
-        fired.kiss = true;
-        sfxKiss();
-      }
+      if(!fired.kiss && tScene > 0.35){ fired.kiss = true; sfxKiss(); }
       if(tScene < 0.25 && Math.random() < 0.55) spawnHeart(490, 250, 0.8);
       if(tScene > 0.35 && Math.random() < 0.35){
         spawnHeart(490 + (-20 + Math.random()*40), 245 + (-10 + Math.random()*20), 0.7);
@@ -882,10 +806,7 @@
       camTarget.y = 285;
       camTarget.zoom = 1.10;
 
-      if(!fired.kneel && tScene > 0.35){
-        fired.kneel = true;
-        sfxKneel();
-      }
+      if(!fired.kneel && tScene > 0.35){ fired.kneel = true; sfxKneel(); }
       if(Math.random() < 0.12) spawnHeart(490, 240, 0.6);
     }
 
@@ -893,10 +814,7 @@
       targetKneelA = 1;
       camTarget.zoom = 1.18;
 
-      if(!fired.paper && tScene > 0.08){
-        fired.paper = true;
-        sfxPaper();
-      }
+      if(!fired.paper && tScene > 0.08){ fired.paper = true; sfxPaper(); }
 
       typeTimer += dt;
       const cps = 52;
@@ -928,10 +846,7 @@
       camTarget.y = 235;
       camTarget.zoom = 1.14;
 
-      if(!fired.final && tScene > 0.10){
-        fired.final = true;
-        sfxFinal();
-      }
+      if(!fired.final && tScene > 0.10){ fired.final = true; sfxFinal(); }
       if(Math.random() < 0.35) spawnHeart(490 + (-260 + Math.random()*520), 160 + (-30 + Math.random()*30), 1.0);
     }
 
@@ -941,7 +856,7 @@
     A.kiss  = damp(A.kiss,  targetKiss,   14, dt);
     B.kiss  = damp(B.kiss,  targetKiss,   14, dt);
     A.kneel = damp(A.kneel, targetKneelA, 12, dt);
-    B.kneel = damp(B.kneel, 0,           12, dt);
+    B.kneel = damp(B.kneel, 0,            12, dt);
     A.hug   = damp(A.hug,   targetHug,    12, dt);
     B.hug   = damp(B.hug,   targetHug,    12, dt);
 
@@ -971,7 +886,6 @@
     drawBackground(dt);
     drawStickman({...A, x: ax});
     drawStickman({...B, x: bx});
-
     for(const h of hearts) drawHeart(h.x, h.y, h.s, h.rot, h.a);
 
     ctx.restore();
@@ -1007,55 +921,67 @@
     requestAnimationFrame(loop);
   }
 
-  // Input
-  canvas.addEventListener("pointerdown", (e) => {
+  // Input principal: acá también pedimos fullscreen + lock landscape
+  canvas.addEventListener("pointerdown", async (e) => {
     e.preventDefault();
     showHud();
+
+    // Intento de ocultar UI
+    hideBrowserUIAggressive();
+    if(!isFullscreen()){
+      await requestFullscreen();
+      await lockLandscape();
+    }
+
     ensureAudio();
     tryStartBgm();
+
     if (lockedPortrait) return;
     advance();
   }, { passive:false });
 
   document.getElementById("restart").addEventListener("click", () => {
-    ensureAudio();
-    sfxClick();
-    reset();
+    ensureAudio(); sfxClick(); reset();
   });
 
-  window.addEventListener("keydown", (e) => {
+  window.addEventListener("keydown", async (e) => {
     showHud();
     if(e.key === " " || e.key === "Enter"){
-      ensureAudio();
-      tryStartBgm();
+      hideBrowserUIAggressive();
+      if(!isFullscreen()){
+        await requestFullscreen();
+        await lockLandscape();
+      }
+      ensureAudio(); tryStartBgm();
       if (!lockedPortrait) advance();
     }
     if(e.key.toLowerCase() === "r"){
-      ensureAudio();
-      sfxClick();
-      reset();
+      ensureAudio(); sfxClick(); reset();
     }
   });
 
-  // Resize/orientation
   function onResize(){
     updateOrientationOverlay();
     resizeCanvas();
+    hideBrowserUIAggressive();
   }
   window.addEventListener("resize", onResize);
   window.addEventListener("orientationchange", () => setTimeout(onResize, 250));
 
-  // Autoplay attempt
   window.addEventListener("load", () => {
     onResize();
     showHud();
     tryStartBgm();
-  });
-  document.addEventListener("visibilitychange", () => {
-    if(!document.hidden) tryStartBgm();
+    hideBrowserUIAggressive();
   });
 
-  // Init
+  document.addEventListener("visibilitychange", () => {
+    if(!document.hidden){
+      tryStartBgm();
+      hideBrowserUIAggressive();
+    }
+  });
+
   onSceneEnter(scene);
   reset();
   onResize();
