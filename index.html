@@ -1,0 +1,838 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Un mini-juego para vos ❤️</title>
+  <style>
+    html,body{height:100%; margin:0; background:#0b1020; font-family:system-ui, -apple-system, Segoe UI, Roboto, Arial;}
+    #wrap{height:100%; display:grid; place-items:center;}
+    canvas{
+      width:min(980px, 100vw);
+      height:auto;
+      border-radius:20px;
+      box-shadow:0 25px 80px rgba(0,0,0,.55);
+      background:
+        radial-gradient(900px 600px at 25% 20%, rgba(124,92,255,.28), transparent 60%),
+        radial-gradient(900px 600px at 75% 30%, rgba(255,77,141,.22), transparent 60%),
+        linear-gradient(180deg, #0b1020, #260a2a);
+    }
+    .hud{
+      position:fixed; left:0; right:0; top:0;
+      display:flex; justify-content:center; padding:10px;
+      pointer-events:none;
+      z-index:10;
+    }
+    .pill{
+      pointer-events:auto;
+      display:flex; gap:10px; align-items:center;
+      background:rgba(255,255,255,.08);
+      border:1px solid rgba(255,255,255,.16);
+      color:rgba(255,255,255,.9);
+      padding:10px 12px;
+      border-radius:999px;
+      backdrop-filter: blur(10px);
+      font-size:13px;
+    }
+    button{
+      border:1px solid rgba(255,255,255,.18);
+      background:rgba(255,255,255,.10);
+      color:rgba(255,255,255,.92);
+      padding:8px 10px;
+      border-radius:12px;
+      cursor:pointer;
+      transition: transform .12s ease, background .2s ease;
+      white-space:nowrap;
+    }
+    button:hover{background:rgba(255,255,255,.14); transform: translateY(-1px)}
+    button:active{transform: translateY(0px) scale(.98)}
+    .hint{opacity:.8}
+  </style>
+</head>
+<body>
+  <div class="hud">
+    <div class="pill">
+      <span class="hint" id="hint">Click para avanzar</span>
+      <button id="btnBgm">▶️ Música</button>
+      <button id="restart">Reiniciar</button>
+    </div>
+  </div>
+
+  <div id="wrap">
+    <canvas id="c" width="980" height="560"></canvas>
+  </div>
+
+  <!-- 🟣 ESPACIO PARA TU MÚSICA DE FONDO:
+       1) Poné tu archivo en la misma carpeta, ej: "musica.mp3"
+       2) Cambiá el src abajo
+       3) Ajustá el volumen en JS (bgm.volume = 0.12) -->
+  <audio id="bgm" src="musica.mp3" loop preload="auto"></audio>
+
+<script>
+(() => {
+  const canvas = document.getElementById("c");
+  const ctx = canvas.getContext("2d");
+
+  // ===== PERSONALIZÁ ACÁ =====
+  const NOMBRE = "mi vida";                 // ej: "Luciano" / "amor"
+  const FIRMA  = "— Augus ❤️";         // tu firma
+  const CARTA = [
+    `Hola ${NOMBRE}.\n\n`,
+    "Hoy te hice un pequeño jueguito porque con vos\n",
+    "todo se siente más divertido.\n\n",
+    "Gracias por ser mi paz, mi risa, mi corazon y mi vida.\n",
+    "Te elijo y te elegire simpre tanto en lo dificil como lo simple.\n\n",
+    "Te amo muchisimo, mas de lo que unas palabras podrian decir y me encanta que construyamos nuestro mundo juntos.\n",
+    "Sigamos creciendo juntos mi hermoso!\n\n",
+    FIRMA
+  ].join("");
+  // ==========================
+
+  const SCENE = { PLAZA:0, BESO:1, PROPUESTA:2, CARTA:3, ABRAZO:4, FINAL:5 };
+
+  let scene = SCENE.PLAZA;
+  let tScene = 0;
+  let last = performance.now();
+
+  // carta
+  let typed = "";
+  let typeIndex = 0;
+  let typeTimer = 0;
+
+  // corazones
+  const hearts = [];
+
+  // ambiente
+  const groundY = 420;
+  const bench = { x: 490, y: 360, w: 420, h: 18 };
+
+  // Pose variables (suavizadas)
+  const A = { name:"A", x: 430, y: 320, kneel:0, kiss:0, hug:0 };
+  const B = { name:"B", x: 555, y: 320, kneel:0, kiss:0, hug:0 };
+
+  // Posiciones suavizadas
+  let ax = A.x, bx = B.x;
+
+  // Cámara (zoom)
+  const cam = { x:490, y:280, zoom:1 };
+  const camTarget = { x:490, y:280, zoom:1 };
+
+  // UI
+  const hint = document.getElementById("hint");
+  const btnBgm = document.getElementById("btnBgm");
+  const bgm = document.getElementById("bgm");
+
+  // BGM: volumen suave para no molestar
+  bgm.volume = 0.30;
+  let bgmPlaying = false;
+
+  // Audio FX (generados con WebAudio, sin archivos)
+  let audioCtx = null;
+
+  function ensureAudio(){
+    if(!audioCtx){
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if(audioCtx.state === "suspended") audioCtx.resume();
+  }
+
+  function playTone({freq=440, type="sine", dur=0.12, vol=0.14, slideTo=null}){
+    if(!audioCtx) return;
+    const t0 = audioCtx.currentTime;
+    const o = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    o.type = type;
+    o.frequency.setValueAtTime(freq, t0);
+    if(slideTo){
+      o.frequency.exponentialRampToValueAtTime(Math.max(20, slideTo), t0 + dur);
+    }
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(vol, t0 + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    o.connect(g); g.connect(audioCtx.destination);
+    o.start(t0);
+    o.stop(t0 + dur + 0.02);
+  }
+
+  function playNoiseBurst({dur=0.10, vol=0.10, highpass=900}){
+    if(!audioCtx) return;
+    const t0 = audioCtx.currentTime;
+    const bufferSize = Math.floor(audioCtx.sampleRate * dur);
+    const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for(let i=0;i<bufferSize;i++){
+      const env = Math.pow(1 - i/bufferSize, 2.2);
+      data[i] = (Math.random()*2 - 1) * env;
+    }
+    const src = audioCtx.createBufferSource();
+    src.buffer = buffer;
+
+    const hp = audioCtx.createBiquadFilter();
+    hp.type = "highpass";
+    hp.frequency.setValueAtTime(highpass, t0);
+
+    const g = audioCtx.createGain();
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(vol, t0 + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+
+    src.connect(hp); hp.connect(g); g.connect(audioCtx.destination);
+    src.start(t0);
+    src.stop(t0 + dur + 0.02);
+  }
+
+  // FX temáticos
+  function sfxClick(){ playTone({freq:520, type:"triangle", dur:0.06, vol:0.10, slideTo:640}); }
+  function sfxKiss(){
+    playNoiseBurst({dur:0.06, vol:0.08, highpass:1200});
+    playTone({freq:740, type:"sine", dur:0.11, vol:0.10, slideTo:980});
+    playTone({freq:520, type:"sine", dur:0.10, vol:0.06, slideTo:420});
+  }
+  function sfxKneel(){ playTone({freq:220, type:"sine", dur:0.10, vol:0.10, slideTo:180}); }
+  function sfxPaper(){
+    playNoiseBurst({dur:0.12, vol:0.07, highpass:700});
+    playTone({freq:620, type:"triangle", dur:0.07, vol:0.08, slideTo:520});
+  }
+  function sfxHeart(){ playTone({freq:880, type:"sine", dur:0.08, vol:0.10, slideTo:740}); }
+  function sfxFinal(){
+    playTone({freq:392, type:"sine", dur:0.14, vol:0.10, slideTo:523});
+    playTone({freq:523, type:"sine", dur:0.16, vol:0.10, slideTo:659});
+    playTone({freq:659, type:"sine", dur:0.18, vol:0.10, slideTo:784});
+  }
+
+  document.getElementById("restart").addEventListener("click", () => { ensureAudio(); sfxClick(); reset(); });
+  canvas.addEventListener("click", () => { ensureAudio(); advance(); });
+  window.addEventListener("keydown", (e) => {
+    if(e.key === " " || e.key === "Enter"){ ensureAudio(); advance(); }
+    if(e.key.toLowerCase() === "r"){ ensureAudio(); sfxClick(); reset(); }
+  });
+
+  btnBgm.addEventListener("click", async () => {
+    ensureAudio();
+    sfxClick();
+    try{
+      if(!bgmPlaying){
+        await bgm.play();
+        bgmPlaying = true;
+        btnBgm.textContent = "⏸️ Música";
+      }else{
+        bgm.pause();
+        bgmPlaying = false;
+        btnBgm.textContent = "▶️ Música";
+      }
+    }catch(e){
+      alert("Tu navegador bloqueó el audio. Tocá el botón otra vez.");
+    }
+  });
+
+  function setHint(s){ hint.textContent = s; }
+
+  function reset(){
+    scene = SCENE.PLAZA;
+    tScene = 0;
+    typed = "";
+    typeIndex = 0;
+    typeTimer = 0;
+    hearts.length = 0;
+    A.kneel = B.kneel = 0;
+    A.kiss  = B.kiss  = 0;
+    A.hug   = B.hug   = 0;
+    ax = A.x; bx = B.x;
+    cam.x = camTarget.x = 490;
+    cam.y = camTarget.y = 280;
+    cam.zoom = camTarget.zoom = 1;
+    setHint("Click para avanzar");
+  }
+
+  // Helpers
+  function lerp(a,b,t){ return a + (b-a)*t; }
+  function clamp(x,a,b){ return Math.max(a, Math.min(b,x)); }
+  function easeOut(t){ return 1 - Math.pow(1-t, 3); }
+  function easeInOut(t){ return t<.5 ? 4*t*t*t : 1 - Math.pow(-2*t+2,3)/2; }
+  function damp(current, target, lambda, dt){
+    return lerp(current, target, 1 - Math.exp(-lambda * dt));
+  }
+
+  function spawnHeart(x,y,scale=1){
+    hearts.push({
+      x,y,
+      vx: (-0.6 + Math.random()*1.2),
+      vy: (-1.6 - Math.random()*1.2),
+      a: 0.95,
+      s: (10 + Math.random()*12) * scale,
+      rot: Math.random()*Math.PI,
+      vr: (-0.06 + Math.random()*0.12),
+    });
+    if(hearts.length>260) hearts.shift();
+  }
+
+  function drawHeart(x,y,s,rot,a){
+    ctx.save();
+    ctx.translate(x,y);
+    ctx.rotate(rot);
+    ctx.globalAlpha = a;
+    ctx.beginPath();
+    const k = s/16;
+    ctx.moveTo(0, 5*k);
+    ctx.bezierCurveTo(0, 0, -8*k, 0, -8*k, 6*k);
+    ctx.bezierCurveTo(-8*k, 12*k, 0, 14*k, 0, 16*k);
+    ctx.bezierCurveTo(0, 14*k, 8*k, 12*k, 8*k, 6*k);
+    ctx.bezierCurveTo(8*k, 0, 0, 0, 0, 5*k);
+    ctx.closePath();
+    const g = ctx.createLinearGradient(-s,-s,s,s);
+    g.addColorStop(0, "rgba(255,77,141,0.95)");
+    g.addColorStop(1, "rgba(124,92,255,0.95)");
+    ctx.fillStyle = g;
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function roundRect(x,y,w,h,r){
+    ctx.beginPath();
+    ctx.moveTo(x+r, y);
+    ctx.arcTo(x+w, y, x+w, y+h, r);
+    ctx.arcTo(x+w, y+h, x, y+h, r);
+    ctx.arcTo(x, y+h, x, y, r);
+    ctx.arcTo(x, y, x+w, y, r);
+    ctx.closePath();
+  }
+
+  // -------- Fondo con más detalles --------
+  const clouds = Array.from({length:6}, (_,i) => ({
+    x: 120 + i*150,
+    y: 95 + (i%3)*22,
+    s: 0.9 + (i%4)*0.12,
+    sp: 6 + (i%3)*4
+  }));
+
+  const lanterns = [
+    {x: 220, y: 300},
+    {x: 760, y: 295},
+  ];
+
+  function drawCloud(cx, cy, s){
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.scale(s,s);
+    ctx.globalAlpha = 0.12;
+    ctx.fillStyle = "white";
+    ctx.beginPath();
+    ctx.ellipse(-30, 0, 34, 22, 0, 0, Math.PI*2);
+    ctx.ellipse(0, -10, 42, 28, 0, 0, Math.PI*2);
+    ctx.ellipse(35, 0, 30, 20, 0, 0, Math.PI*2);
+    ctx.ellipse(5, 10, 46, 22, 0, 0, Math.PI*2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawTree(x, baseY, s){
+    ctx.save();
+    ctx.translate(x, baseY);
+    ctx.scale(s,s);
+
+    ctx.fillStyle = "rgba(0,0,0,.18)";
+    ctx.beginPath();
+    ctx.ellipse(0, 65, 80, 18, 0, 0, Math.PI*2);
+    ctx.fill();
+
+    ctx.fillStyle = "rgba(255,255,255,.10)";
+    roundRect(-14, 0, 28, 80, 10); ctx.fill();
+
+    ctx.fillStyle = "rgba(255,77,141,.10)";
+    ctx.beginPath(); ctx.ellipse(0, -20, 80, 65, 0, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = "rgba(124,92,255,.10)";
+    ctx.beginPath(); ctx.ellipse(-30, -10, 60, 50, 0, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(35, -5, 55, 45, 0, 0, Math.PI*2); ctx.fill();
+
+    ctx.restore();
+  }
+
+  function drawLantern(x,y,glow=1){
+    ctx.save();
+    ctx.strokeStyle = "rgba(255,255,255,.18)";
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x, y-100);
+    ctx.stroke();
+
+    ctx.fillStyle = "rgba(255,255,255,.14)";
+    roundRect(x-16, y-128, 32, 28, 8); ctx.fill();
+
+    ctx.globalAlpha = 0.18 * glow;
+    const g = ctx.createRadialGradient(x, y-114, 2, x, y-114, 60);
+    g.addColorStop(0, "rgba(255,220,170,.9)");
+    g.addColorStop(1, "rgba(255,220,170,0)");
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(x, y-114, 60, 0, Math.PI*2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawFence(){
+    ctx.save();
+    ctx.globalAlpha = 0.10;
+    ctx.fillStyle = "white";
+    const y = groundY - 6;
+    for(let x=0; x<=980; x+=26){
+      roundRect(x, y, 10, 40, 4); ctx.fill();
+    }
+    ctx.globalAlpha = 0.08;
+    roundRect(0, y+12, 980, 6, 6); ctx.fill();
+    roundRect(0, y+28, 980, 6, 6); ctx.fill();
+    ctx.restore();
+  }
+
+  function drawFlowers(){
+    ctx.save();
+    for(let i=0;i<20;i++){
+      const x = 60 + (i*47)%860;
+      const y = groundY + 22 + ((i*19)%16);
+      ctx.globalAlpha = 0.14;
+      ctx.fillStyle = (i%2===0) ? "rgba(255,77,141,.9)" : "rgba(124,92,255,.9)";
+      ctx.beginPath();
+      ctx.arc(x, y, 3, 0, Math.PI*2);
+      ctx.fill();
+      ctx.globalAlpha = 0.08;
+      ctx.fillStyle = "rgba(180,255,200,.9)";
+      ctx.fillRect(x-1, y, 2, 10);
+    }
+    ctx.restore();
+  }
+
+  function drawBackground(dt){
+    for(const c of clouds){
+      c.x += (c.sp * dt);
+      if(c.x > 1100) c.x = -120;
+      drawCloud(c.x, c.y, c.s);
+    }
+
+    for(let i=0;i<48;i++){
+      const x = (i*97)%980;
+      const y = (i*43)%220;
+      ctx.globalAlpha = 0.22;
+      ctx.fillStyle = "white";
+      ctx.fillRect(x, y, 2, 2);
+    }
+    ctx.globalAlpha = 1;
+
+    ctx.globalAlpha = 0.14;
+    const mg = ctx.createRadialGradient(810, 110, 1, 810, 110, 110);
+    mg.addColorStop(0, "rgba(255,255,255,.9)");
+    mg.addColorStop(1, "rgba(255,255,255,0)");
+    ctx.fillStyle = mg;
+    ctx.beginPath(); ctx.arc(810, 110, 110, 0, Math.PI*2); ctx.fill();
+    ctx.globalAlpha = 1;
+
+    ctx.fillStyle = "rgba(0,0,0,.18)";
+    ctx.fillRect(0, groundY, 980, 560-groundY);
+
+    ctx.fillStyle = "rgba(255,255,255,.05)";
+    ctx.beginPath();
+    ctx.ellipse(490, groundY+35, 390, 58, 0, 0, Math.PI*2);
+    ctx.fill();
+
+    drawFence();
+    drawTree(140, groundY-5, 1.1);
+    drawTree(850, groundY-10, 0.95);
+
+    const flick = 0.9 + Math.sin(performance.now()/700)*0.1;
+    for(const l of lanterns) drawLantern(l.x, l.y, flick);
+
+    drawFlowers();
+
+    ctx.fillStyle = "rgba(255,255,255,.12)";
+    roundRect(bench.x - bench.w/2, bench.y, bench.w, bench.h, 10);
+    ctx.fill();
+    ctx.fillStyle = "rgba(255,255,255,.08)";
+    roundRect(bench.x - bench.w/2 + 40, bench.y-50, bench.w-80, 14, 10);
+    ctx.fill();
+
+    ctx.fillStyle = "rgba(255,255,255,.10)";
+    roundRect(bench.x - bench.w/2 + 60, bench.y+12, 18, 60, 8); ctx.fill();
+    roundRect(bench.x + bench.w/2 - 78, bench.y+12, 18, 60, 8); ctx.fill();
+  }
+
+  // -------- Stickmans --------
+  function drawStickman(p){
+    const headR = 16;
+    const line = 4;
+
+    let y = p.y;
+    const kneel = p.kneel;
+    const hug = p.hug;
+    const kiss = p.kiss;
+
+    const phase = performance.now()/520 + (p.name==="A"?0:1.7);
+    const idle = Math.sin(phase) * 2.2;
+    y += idle * 0.6;
+
+    y += lerp(0, 34, kneel);
+
+    ctx.lineCap = "round";
+    ctx.lineWidth = line;
+    ctx.strokeStyle = "rgba(255,255,255,.92)";
+
+    ctx.beginPath();
+    ctx.arc(p.x, y - 48 + idle*0.35, headR, 0, Math.PI*2);
+    ctx.stroke();
+
+    ctx.globalAlpha = 0.7;
+    ctx.fillStyle = "white";
+    ctx.beginPath();
+    ctx.arc(p.x-6, y-52 + idle*0.25, 2, 0, Math.PI*2);
+    ctx.arc(p.x+6, y-52 + idle*0.25, 2, 0, Math.PI*2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+
+    ctx.beginPath();
+    ctx.moveTo(p.x, y - 32);
+    ctx.lineTo(p.x, y + 28);
+    ctx.stroke();
+
+    const armT = hug;
+    const swing = (1-armT) * Math.sin(phase*1.2) * 1.8;
+
+    const ax1 = lerp(p.x - 26, p.x + (p.name==="A" ? 20 : -20), armT);
+    const ay1 = lerp(y - 8 + swing, y + 4, armT);
+
+    const ax2 = lerp(p.x + 26, p.x + (p.name==="A" ? 24 : -24), armT);
+    const ay2 = lerp(y - 8 - swing, y + 10, armT);
+
+    ctx.beginPath();
+    ctx.moveTo(p.x, y - 10);
+    ctx.lineTo(ax1, ay1);
+    ctx.moveTo(p.x, y - 10);
+    ctx.lineTo(ax2, ay2);
+    ctx.stroke();
+
+    const kneeUp = kneel;
+
+    ctx.beginPath();
+    ctx.moveTo(p.x, y + 28);
+    ctx.lineTo(p.x - 18, y + 54 + lerp(0, 8, kneeUp));
+    ctx.lineTo(p.x - 2,  y + 60 + lerp(0, 16, kneeUp));
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(p.x, y + 28);
+    ctx.lineTo(p.x + 20, y + lerp(56, 40, kneeUp));
+    ctx.lineTo(p.x + lerp(6, 26, kneeUp), y + 64);
+    ctx.stroke();
+
+    if(kiss > 0.01){
+      const dir = p.name==="A" ? 1 : -1;
+      ctx.globalAlpha = 0.75;
+      ctx.strokeStyle = "rgba(255,77,141,.95)";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(p.x + dir*headR*0.9, y - 46 + idle*0.2);
+      ctx.lineTo(p.x + dir*(headR*1.25), y - 44 + idle*0.2);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+      ctx.lineWidth = line;
+      ctx.strokeStyle = "rgba(255,255,255,.92)";
+    }
+  }
+
+  // -------- Carta overlay --------
+  function wrapText(text, x, y, maxWidth, lineHeight){
+    const lines = text.split("\n");
+    let cy = y;
+    for(const ln of lines){
+      if(ln === ""){ cy += lineHeight; continue; }
+      let words = ln.split(" ");
+      let line = "";
+      for(const w of words){
+        const test = line ? line + " " + w : w;
+        if(ctx.measureText(test).width > maxWidth){
+          ctx.fillText(line, x, cy);
+          line = w;
+          cy += lineHeight;
+        }else line = test;
+      }
+      if(line) ctx.fillText(line, x, cy);
+      cy += lineHeight;
+    }
+  }
+
+  function drawLetterOverlay(openAmount){
+    ctx.save();
+    ctx.globalAlpha = 0.55 * openAmount;
+    ctx.fillStyle = "black";
+    ctx.fillRect(0,0,980,560);
+    ctx.restore();
+
+    const w = 720, h = 420;
+    const x = 490 - w/2;
+    const y = 280 - h/2;
+
+    ctx.save();
+    ctx.globalAlpha = openAmount;
+    ctx.fillStyle = "rgba(255,255,255,.92)";
+    roundRect(x,y,w,h,20); ctx.fill();
+    ctx.strokeStyle = "rgba(0,0,0,.12)";
+    ctx.lineWidth = 2;
+    roundRect(x,y,w,h,20); ctx.stroke();
+
+    ctx.fillStyle = "rgba(0,0,0,.82)";
+    ctx.font = "700 22px system-ui, -apple-system, Segoe UI, Roboto, Arial";
+    ctx.fillText("Una carta para vos 💌", x+28, y+44);
+
+    ctx.fillStyle = "rgba(0,0,0,.78)";
+    ctx.font = "16px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
+    wrapText(typed, x+28, y+78, w-56, 24);
+
+    ctx.fillStyle = "rgba(0,0,0,.55)";
+    ctx.font = "13px system-ui, -apple-system, Segoe UI, Roboto, Arial";
+    ctx.fillText("Click para cerrar (o click durante lectura para mostrar todo)", x+28, y+h-24);
+
+    ctx.restore();
+  }
+
+  // -------- Control de escena + FX disparados una vez --------
+  let fired = { kiss:false, kneel:false, paper:false, final:false };
+
+  function onSceneEnter(s){
+    fired.kiss = fired.kneel = fired.paper = fired.final = false;
+    if(s === SCENE.BESO) setHint("💕");
+    else if(s === SCENE.PROPUESTA) setHint("🥺");
+    else if(s === SCENE.CARTA) setHint("Leyendo...");
+    else if(s === SCENE.ABRAZO) setHint("🫂");
+    else if(s === SCENE.FINAL) setHint("Te amo ❤️  (R para reiniciar)");
+    else setHint("Click para avanzar");
+  }
+
+  function advance(){
+    if(scene === SCENE.CARTA && typeIndex < CARTA.length){
+      typed = CARTA;
+      typeIndex = CARTA.length;
+      sfxPaper();
+      return;
+    }
+    if(scene < SCENE.FINAL){
+      sfxClick();
+      scene++;
+      tScene = 0;
+      onSceneEnter(scene);
+    }
+  }
+
+  function update(dt){
+    tScene += dt;
+
+    let targetAx = A.x, targetBx = B.x;
+    let targetKiss = 0, targetKneelA = 0, targetHug = 0;
+
+    camTarget.x = 490; camTarget.y = 280; camTarget.zoom = 1.0;
+
+    if(scene === SCENE.BESO){
+      const u = clamp(tScene/1.2, 0, 1);
+      const e = easeInOut(u);
+      targetAx = lerp(A.x, 470, e);
+      targetBx = lerp(B.x, 510, e);
+      targetKiss = e;
+
+      camTarget.x = 490;
+      camTarget.y = 250;
+      camTarget.zoom = 1.08;
+
+      if(!fired.kiss && tScene > 0.35){
+        fired.kiss = true;
+        sfxKiss();
+      }
+
+      if(tScene < 0.25 && Math.random() < 0.55) spawnHeart(490, 250, 0.8);
+      if(tScene > 0.35 && Math.random() < 0.35){
+        spawnHeart(490 + (-20 + Math.random()*40), 245 + (-10 + Math.random()*20), 0.7);
+        if(Math.random() < 0.30) sfxHeart();
+      }
+    }
+
+    if(scene === SCENE.PROPUESTA){
+      const u = clamp(tScene/1.4, 0, 1);
+      targetKneelA = easeInOut(u);
+
+      camTarget.x = 470;
+      camTarget.y = 285;
+      camTarget.zoom = 1.10;
+
+      if(!fired.kneel && tScene > 0.35){
+        fired.kneel = true;
+        sfxKneel();
+      }
+
+      if(Math.random() < 0.12) spawnHeart(490, 240, 0.6);
+    }
+
+    if(scene === SCENE.CARTA){
+      targetKneelA = 1;
+      camTarget.x = 490;
+      camTarget.y = 280;
+      camTarget.zoom = 1.18;
+
+      if(!fired.paper && tScene > 0.08){
+        fired.paper = true;
+        sfxPaper();
+      }
+
+      typeTimer += dt;
+      const cps = 52;
+      const target = Math.floor(typeTimer * cps);
+      if(typeIndex < CARTA.length){
+        const next = Math.min(CARTA.length, target);
+        if(next > typeIndex){
+          typed = CARTA.slice(0, next);
+          typeIndex = next;
+          if(next % 14 === 0) playTone({freq: 520 + (next%7)*30, type:"triangle", dur:0.03, vol:0.03, slideTo:480});
+        }
+      }
+    }
+
+    if(scene === SCENE.ABRAZO){
+      const u = clamp(tScene/1.0, 0, 1);
+      const e = easeInOut(u);
+      targetAx = lerp(A.x, 472, e);
+      targetBx = lerp(B.x, 508, e);
+      targetHug = e;
+
+      camTarget.x = 490;
+      camTarget.y = 260;
+      camTarget.zoom = 1.10;
+
+      if(Math.random() < 0.20) spawnHeart(490 + (-30 + Math.random()*60), 235 + (-10 + Math.random()*20), 0.85);
+    }
+
+    if(scene === SCENE.FINAL){
+      targetAx = 472; targetBx = 508; targetHug = 1;
+
+      camTarget.x = 490;
+      camTarget.y = 235;
+      camTarget.zoom = 1.14;
+
+      if(!fired.final && tScene > 0.10){
+        fired.final = true;
+        sfxFinal();
+      }
+
+      if(Math.random() < 0.35) spawnHeart(490 + (-260 + Math.random()*520), 160 + (-30 + Math.random()*30), 1.0);
+    }
+
+    ax = damp(ax, targetAx, 12, dt);
+    bx = damp(bx, targetBx, 12, dt);
+
+    A.kiss  = damp(A.kiss,  targetKiss,   14, dt);
+    B.kiss  = damp(B.kiss,  targetKiss,   14, dt);
+
+    A.kneel = damp(A.kneel, targetKneelA, 12, dt);
+    B.kneel = damp(B.kneel, 0,           12, dt);
+
+    A.hug   = damp(A.hug,   targetHug,    12, dt);
+    B.hug   = damp(B.hug,   targetHug,    12, dt);
+
+    cam.x = damp(cam.x, camTarget.x, 10, dt);
+    cam.y = damp(cam.y, camTarget.y, 10, dt);
+    cam.zoom = damp(cam.zoom, camTarget.zoom, 10, dt);
+
+    for(const h of hearts){
+      h.x += h.vx;
+      h.y += h.vy;
+      h.vy += 0.02;
+      h.a -= 0.006;
+      h.rot += h.vr;
+    }
+    for(let i=hearts.length-1;i>=0;i--){
+      if(hearts[i].a <= 0) hearts.splice(i,1);
+    }
+  }
+
+  function render(dt){
+    ctx.clearRect(0,0,980,560);
+
+    ctx.save();
+    ctx.translate(490, 280);
+    ctx.scale(cam.zoom, cam.zoom);
+    ctx.translate(-cam.x, -cam.y);
+
+    drawBackground(dt);
+
+    if(scene === SCENE.BESO){
+      const u = clamp(tScene/1.2, 0, 1);
+      const e = easeOut(u);
+      ctx.save();
+      ctx.globalAlpha = e;
+      ctx.textAlign = "center";
+      ctx.font = "900 40px system-ui, -apple-system, Segoe UI, Roboto, Arial";
+      ctx.lineWidth = 8;
+      ctx.strokeStyle = "rgba(0,0,0,.35)";
+      ctx.strokeText("MUAK 💋", 490, 210 - e*26);
+      ctx.fillStyle = "rgba(255,255,255,0.95)";
+      ctx.fillText("MUAK 💋", 490, 210 - e*26);
+      ctx.restore();
+      ctx.textAlign = "start";
+    }
+
+    drawStickman({...A, x: ax});
+    drawStickman({...B, x: bx});
+
+    if(scene === SCENE.PROPUESTA){
+      const u = clamp((tScene-0.5)/0.8, 0, 1);
+      const e = easeOut(u);
+      ctx.save();
+      ctx.globalAlpha = 0.9 * e;
+      ctx.fillStyle = "rgba(255,255,255,.88)";
+      roundRect(ax + 26, A.y + 22, 44, 28, 8);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    for(const h of hearts){
+      drawHeart(h.x, h.y, h.s, h.rot, h.a);
+    }
+
+    ctx.restore();
+
+    if(scene === SCENE.CARTA){
+      const open = clamp(tScene/0.6, 0, 1);
+      drawLetterOverlay(open);
+    }
+
+    if(scene === SCENE.FINAL){
+      const u = clamp(tScene/1.2, 0, 1);
+      const e = easeOut(u);
+
+      ctx.save();
+      ctx.globalAlpha = e;
+
+      drawHeart(490, 170, 150, Math.sin(performance.now()/4000)*0.15, 0.95);
+
+      ctx.fillStyle = "rgba(255,255,255,.95)";
+      ctx.font = "900 58px system-ui, -apple-system, Segoe UI, Roboto, Arial";
+      ctx.textAlign = "center";
+      ctx.fillText("TE AMO", 490, 192);
+
+      ctx.font = "600 16px system-ui, -apple-system, Segoe UI, Roboto, Arial";
+      ctx.fillStyle = "rgba(255,255,255,.78)";
+      ctx.fillText("Reiniciar: botón o tecla R", 490, 234);
+
+      ctx.restore();
+      ctx.textAlign = "start";
+    }
+  }
+
+  function loop(now){
+    const dt = Math.min(0.05, (now-last)/1000);
+    last = now;
+    update(dt);
+    render(dt);
+    requestAnimationFrame(loop);
+  }
+
+  onSceneEnter(scene);
+  reset();
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
