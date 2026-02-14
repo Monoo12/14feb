@@ -17,8 +17,7 @@
       --btn-bg: rgba(255,255,255,.10);
       --btn-bd: rgba(255,255,255,.18);
       --btn-bg-h: rgba(255,255,255,.14);
-      --shadow: 0 25px 80px rgba(0,0,0,.55);
-      --radius: 18px;
+
       --safe-top: env(safe-area-inset-top);
       --safe-bot: env(safe-area-inset-bottom);
       --safe-left: env(safe-area-inset-left);
@@ -35,28 +34,31 @@
       -webkit-tap-highlight-color: transparent;
     }
 
-    #wrap{
-      height:100%;
-      width:100%;
-      display:grid;
-      place-items:center;
-      padding: calc(10px + var(--safe-top)) calc(10px + var(--safe-right))
-               calc(10px + var(--safe-bot)) calc(10px + var(--safe-left));
-      box-sizing:border-box;
+    /* FULLSCREEN real */
+    #stage{
+      position: fixed;
+      inset: 0;
+      width: 100vw;
+      height: 100vh;
+      height: 100svh; /* iOS Safari moderno */
+      height: 100dvh; /* Chrome/Android moderno */
+      background: var(--bg);
+      overflow: hidden;
     }
 
+    /* Canvas ocupa todo el viewport */
     canvas{
-      display:block;
+      position: absolute;
+      inset: 0;
       width: 100%;
       height: 100%;
-      max-width: 100%;
-      max-height: 100%;
-      border-radius: var(--radius);
-      box-shadow: var(--shadow);
+      display:block;
       background:
         radial-gradient(900px 600px at 25% 20%, rgba(124,92,255,.28), transparent 60%),
         radial-gradient(900px 600px at 75% 30%, rgba(255,77,141,.22), transparent 60%),
         linear-gradient(180deg, #0b1020, #260a2a);
+      /* Sin bordes ni sombras para que sea full */
+      border-radius: 0;
     }
 
     /* HUD */
@@ -65,7 +67,8 @@
       left:0; right:0; top:0;
       display:flex;
       justify-content:center;
-      padding: calc(10px + var(--safe-top)) 10px 10px 10px;
+      padding: calc(10px + var(--safe-top)) calc(10px + var(--safe-right))
+               10px calc(10px + var(--safe-left));
       z-index:10;
       pointer-events:none;
       transition: opacity .25s ease, transform .25s ease;
@@ -114,10 +117,10 @@
     button:hover{background:var(--btn-bg-h); transform: translateY(-1px)}
     button:active{transform: translateY(0px) scale(.98)}
 
+    /* Compacto cuando es celular horizontal */
     @media (max-height: 420px){
       .pill{ padding:8px 10px; font-size:12px; gap:8px; }
       button{ padding:7px 9px; border-radius:10px; }
-      canvas{ border-radius: 14px; }
     }
 
     @media (prefers-reduced-motion: reduce){
@@ -149,7 +152,6 @@
       padding: 18px 18px;
       color: rgba(255,255,255,.92);
       text-align:center;
-      box-shadow: var(--shadow);
     }
     .rotate-title{
       font-size: 20px;
@@ -211,21 +213,19 @@
     </div>
   </div>
 
-  <div id="wrap">
+  <div id="stage">
     <canvas id="c"></canvas>
   </div>
 
-  <!-- Overlay vertical -->
   <div class="rotate-overlay" id="rotateOverlay" aria-hidden="true">
     <div class="rotate-card">
       <p class="rotate-title">Girá el celular 📱➡️</p>
       <p class="rotate-sub">Este mini-juego está pensado para pantalla <b>horizontal</b>.</p>
       <div class="phone" aria-hidden="true"></div>
-      <p class="rotate-sub" style="margin:0; opacity:.75">Cuando estés en horizontal, continúa tocando 💞</p>
+      <p class="rotate-sub" style="margin:0; opacity:.75">Cuando estés en horizontal, tocá para continuar 💞</p>
     </div>
   </div>
 
-  <!-- Poné tu archivo musical acá -->
   <audio id="bgm" src="musica.mp3" loop preload="auto" playsinline></audio>
 
 <script>
@@ -236,7 +236,7 @@
   const hud = document.getElementById("hud");
   const rotateOverlay = document.getElementById("rotateOverlay");
 
-  // ===== "Resolución lógica" del juego =====
+  // ===== Resolución lógica del juego =====
   const BASE_W = 980;
   const BASE_H = 560;
   const BASE_RATIO = BASE_W / BASE_H;
@@ -245,32 +245,38 @@
     return Math.min(2, window.devicePixelRatio || 1);
   }
 
+  // FULLSCREEN: el canvas ocupa TODO. Nosotros adaptamos la resolución interna para mantener ratio
+  // usando "cover" (que llena la pantalla aunque recorte un poco) para que se vea más "pantalla completa".
   function resizeCanvas(){
-    const wrap = document.getElementById("wrap");
-    const rect = wrap.getBoundingClientRect();
+    const stage = document.getElementById("stage");
+    const rect = stage.getBoundingClientRect();
 
-    const availW = Math.max(1, rect.width);
-    const availH = Math.max(1, rect.height);
+    const cssW = Math.max(1, rect.width);
+    const cssH = Math.max(1, rect.height);
 
-    let cssW = availW;
-    let cssH = cssW / BASE_RATIO;
-    if (cssH > availH){
-      cssH = availH;
-      cssW = cssH * BASE_RATIO;
-    }
-
-    canvas.style.width = cssW + "px";
-    canvas.style.height = cssH + "px";
-
+    // Tamaño real del canvas (backing store)
     const dpr = getDPR();
-    canvas.width = Math.round(cssW * dpr);
+    canvas.width  = Math.round(cssW * dpr);
     canvas.height = Math.round(cssH * dpr);
 
+    // Queremos que las coords sean BASE_W x BASE_H, pero usando COVER:
+    // Escalamos para llenar completo (puede recortar arriba/abajo o lados).
+    const scaleX = canvas.width  / BASE_W;
+    const scaleY = canvas.height / BASE_H;
+    const scale = Math.max(scaleX, scaleY); // cover
+
+    // Centramos el "mundo" base en el canvas real
+    const worldPxW = BASE_W * scale;
+    const worldPxH = BASE_H * scale;
+    const offsetX = (canvas.width  - worldPxW) / 2;
+    const offsetY = (canvas.height - worldPxH) / 2;
+
     ctx.setTransform(1,0,0,1,0,0);
-    ctx.scale(canvas.width / BASE_W, canvas.height / BASE_H);
+    ctx.translate(offsetX, offsetY);
+    ctx.scale(scale, scale);
   }
 
-  // ===== Anti zoom doble tap (iOS) =====
+  // Anti zoom doble tap (iOS)
   let lastTap = 0;
   canvas.addEventListener("touchend", (e) => {
     const now = Date.now();
@@ -315,10 +321,9 @@
   const A = { name:"A", x: 430, y: 320, kneel:0, kiss:0, hug:0 };
   const B = { name:"B", x: 555, y: 320, kneel:0, kiss:0, hug:0 };
 
-  // Posiciones suavizadas
   let ax = A.x, bx = B.x;
 
-  // Cámara (zoom)
+  // Cámara
   const cam = { x:490, y:280, zoom:1 };
   const camTarget = { x:490, y:280, zoom:1 };
 
@@ -327,21 +332,18 @@
   const btnBgm = document.getElementById("btnBgm");
   const bgm = document.getElementById("bgm");
 
-  // ===== Música automática (con fallback por políticas móviles) =====
+  // Música auto (limitaciones móviles)
   bgm.volume = 0.30;
   let bgmPlaying = false;
-  let userMuted = false; // si el usuario la pausa, no la vuelvo a auto-reanudar
+  let userMuted = false;
 
-  async function tryStartBgm(reason){
-    if (userMuted) return;
-    if (bgmPlaying) return;
+  async function tryStartBgm(){
+    if (userMuted || bgmPlaying) return;
     try{
       await bgm.play();
       bgmPlaying = true;
       btnBgm.textContent = "⏸️ Música";
     }catch(_){
-      // En móviles lo más normal es que falle hasta que haya interacción.
-      // No molestamos con alert: lo resolvemos con "primer toque".
       btnBgm.textContent = "🎵 Música: Tocá para iniciar";
     }
   }
@@ -366,9 +368,8 @@
     }
   });
 
-  // ===== Audio FX (WebAudio) =====
+  // WebAudio FX
   let audioCtx = null;
-
   function ensureAudio(){
     if(!audioCtx){
       audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -439,7 +440,7 @@
     playTone({freq:659, type:"sine", dur:0.18, vol:0.10, slideTo:784});
   }
 
-  // ===== HUD auto-hide =====
+  // HUD auto-hide
   let hudTimer = null;
   function showHud(){
     hud.classList.remove("hidden");
@@ -447,23 +448,15 @@
   }
   function scheduleHideHud(){
     if(hudTimer) clearTimeout(hudTimer);
-    hudTimer = setTimeout(() => {
-      hud.classList.add("hidden");
-    }, 2000);
+    hudTimer = setTimeout(() => hud.classList.add("hidden"), 2000);
   }
-
-  // Mostramos HUD ante cualquier interacción
   ["pointerdown","pointermove","touchstart","keydown","wheel"].forEach(evt => {
     window.addEventListener(evt, () => showHud(), { passive:true });
   });
 
-  // ===== Overlay de orientación =====
-  function isPortrait(){
-    // Más confiable que orientation API vieja:
-    return window.innerHeight > window.innerWidth;
-  }
+  // Overlay orientación
+  function isPortrait(){ return window.innerHeight > window.innerWidth; }
   let lockedPortrait = false;
-
   function updateOrientationOverlay(){
     const portrait = isPortrait();
     lockedPortrait = portrait;
@@ -471,44 +464,7 @@
     rotateOverlay.setAttribute("aria-hidden", portrait ? "false" : "true");
   }
 
-  // ===== Controles: pointer/tap =====
-  canvas.addEventListener("pointerdown", (e) => {
-    e.preventDefault();
-
-    // 1) habilita audio webaudio
-    ensureAudio();
-
-    // 2) intenta arrancar bgm (si el navegador permite o ya hubo interacción)
-    tryStartBgm("pointer");
-
-    // 3) si está en vertical, no avanzamos
-    if (lockedPortrait) return;
-
-    // 4) avanzar
-    advance();
-  }, { passive:false });
-
-  // Botones
-  document.getElementById("restart").addEventListener("click", () => {
-    ensureAudio();
-    sfxClick();
-    reset();
-  });
-
-  // Teclado
-  window.addEventListener("keydown", (e) => {
-    if(e.key === " " || e.key === "Enter"){
-      ensureAudio();
-      tryStartBgm("key");
-      if (!lockedPortrait) advance();
-    }
-    if(e.key.toLowerCase() === "r"){
-      ensureAudio();
-      sfxClick();
-      reset();
-    }
-  });
-
+  // ===== Juego =====
   function setHint(s){ hint.textContent = s; }
 
   function reset(){
@@ -528,7 +484,6 @@
     setHint("Tocá para avanzar");
   }
 
-  // Helpers
   function lerp(a,b,t){ return a + (b-a)*t; }
   function clamp(x,a,b){ return Math.max(a, Math.min(b,x)); }
   function easeOut(t){ return 1 - Math.pow(1-t, 3); }
@@ -589,10 +544,7 @@
     sp: 6 + (i%3)*4
   }));
 
-  const lanterns = [
-    {x: 220, y: 300},
-    {x: 760, y: 295},
-  ];
+  const lanterns = [{x: 220, y: 300},{x: 760, y: 295}];
 
   function drawCloud(cx, cy, s){
     ctx.save();
@@ -613,21 +565,17 @@
     ctx.save();
     ctx.translate(x, baseY);
     ctx.scale(s,s);
-
     ctx.fillStyle = "rgba(0,0,0,.18)";
     ctx.beginPath();
     ctx.ellipse(0, 65, 80, 18, 0, 0, Math.PI*2);
     ctx.fill();
-
     ctx.fillStyle = "rgba(255,255,255,.10)";
     roundRect(-14, 0, 28, 80, 10); ctx.fill();
-
     ctx.fillStyle = "rgba(255,77,141,.10)";
     ctx.beginPath(); ctx.ellipse(0, -20, 80, 65, 0, 0, Math.PI*2); ctx.fill();
     ctx.fillStyle = "rgba(124,92,255,.10)";
     ctx.beginPath(); ctx.ellipse(-30, -10, 60, 50, 0, 0, Math.PI*2); ctx.fill();
     ctx.beginPath(); ctx.ellipse(35, -5, 55, 45, 0, 0, Math.PI*2); ctx.fill();
-
     ctx.restore();
   }
 
@@ -639,10 +587,8 @@
     ctx.moveTo(x, y);
     ctx.lineTo(x, y-100);
     ctx.stroke();
-
     ctx.fillStyle = "rgba(255,255,255,.14)";
     roundRect(x-16, y-128, 32, 28, 8); ctx.fill();
-
     ctx.globalAlpha = 0.18 * glow;
     const g = ctx.createRadialGradient(x, y-114, 2, x, y-114, 60);
     g.addColorStop(0, "rgba(255,220,170,.9)");
@@ -738,7 +684,6 @@
     roundRect(bench.x + bench.w/2 - 78, bench.y+12, 18, 60, 8); ctx.fill();
   }
 
-  // Stickmans
   function drawStickman(p){
     const headR = 16;
     const line = 4;
@@ -820,7 +765,6 @@
     }
   }
 
-  // Carta overlay
   function wrapText(text, x, y, maxWidth, lineHeight){
     const lines = text.split("\n");
     let cy = y;
@@ -871,11 +815,9 @@
     ctx.fillStyle = "rgba(0,0,0,.55)";
     ctx.font = "13px system-ui, -apple-system, Segoe UI, Roboto, Arial";
     ctx.fillText("Tocá para cerrar (o tocá durante lectura para mostrar todo)", x+28, y+h-24);
-
     ctx.restore();
   }
 
-  // Escena + FX
   let fired = { kiss:false, kneel:false, paper:false, final:false };
 
   function onSceneEnter(s){
@@ -918,7 +860,6 @@
       targetBx = lerp(B.x, 510, e);
       targetKiss = e;
 
-      camTarget.x = 490;
       camTarget.y = 250;
       camTarget.zoom = 1.08;
 
@@ -926,7 +867,6 @@
         fired.kiss = true;
         sfxKiss();
       }
-
       if(tScene < 0.25 && Math.random() < 0.55) spawnHeart(490, 250, 0.8);
       if(tScene > 0.35 && Math.random() < 0.35){
         spawnHeart(490 + (-20 + Math.random()*40), 245 + (-10 + Math.random()*20), 0.7);
@@ -946,14 +886,11 @@
         fired.kneel = true;
         sfxKneel();
       }
-
       if(Math.random() < 0.12) spawnHeart(490, 240, 0.6);
     }
 
     if(scene === SCENE.CARTA){
       targetKneelA = 1;
-      camTarget.x = 490;
-      camTarget.y = 280;
       camTarget.zoom = 1.18;
 
       if(!fired.paper && tScene > 0.08){
@@ -969,7 +906,6 @@
         if(next > typeIndex){
           typed = CARTA.slice(0, next);
           typeIndex = next;
-          if(next % 14 === 0) playTone({freq: 520 + (next%7)*30, type:"triangle", dur:0.03, vol:0.03, slideTo:480});
         }
       }
     }
@@ -981,7 +917,6 @@
       targetBx = lerp(B.x, 508, e);
       targetHug = e;
 
-      camTarget.x = 490;
       camTarget.y = 260;
       camTarget.zoom = 1.10;
 
@@ -990,8 +925,6 @@
 
     if(scene === SCENE.FINAL){
       targetAx = 472; targetBx = 508; targetHug = 1;
-
-      camTarget.x = 490;
       camTarget.y = 235;
       camTarget.zoom = 1.14;
 
@@ -999,7 +932,6 @@
         fired.final = true;
         sfxFinal();
       }
-
       if(Math.random() < 0.35) spawnHeart(490 + (-260 + Math.random()*520), 160 + (-30 + Math.random()*30), 1.0);
     }
 
@@ -1008,10 +940,8 @@
 
     A.kiss  = damp(A.kiss,  targetKiss,   14, dt);
     B.kiss  = damp(B.kiss,  targetKiss,   14, dt);
-
     A.kneel = damp(A.kneel, targetKneelA, 12, dt);
     B.kneel = damp(B.kneel, 0,           12, dt);
-
     A.hug   = damp(A.hug,   targetHug,    12, dt);
     B.hug   = damp(B.hug,   targetHug,    12, dt);
 
@@ -1020,8 +950,7 @@
     cam.zoom = damp(cam.zoom, camTarget.zoom, 10, dt);
 
     for(const h of hearts){
-      h.x += h.vx;
-      h.y += h.vy;
+      h.x += h.vx; h.y += h.vy;
       h.vy += 0.02;
       h.a -= 0.006;
       h.rot += h.vr;
@@ -1040,40 +969,10 @@
     ctx.translate(-cam.x, -cam.y);
 
     drawBackground(dt);
-
-    if(scene === SCENE.BESO){
-      const u = clamp(tScene/1.2, 0, 1);
-      const e = easeOut(u);
-      ctx.save();
-      ctx.globalAlpha = e;
-      ctx.textAlign = "center";
-      ctx.font = "900 40px system-ui, -apple-system, Segoe UI, Roboto, Arial";
-      ctx.lineWidth = 8;
-      ctx.strokeStyle = "rgba(0,0,0,.35)";
-      ctx.strokeText("MUAK 💋", 490, 210 - e*26);
-      ctx.fillStyle = "rgba(255,255,255,0.95)";
-      ctx.fillText("MUAK 💋", 490, 210 - e*26);
-      ctx.restore();
-      ctx.textAlign = "start";
-    }
-
     drawStickman({...A, x: ax});
     drawStickman({...B, x: bx});
 
-    if(scene === SCENE.PROPUESTA){
-      const u = clamp((tScene-0.5)/0.8, 0, 1);
-      const e = easeOut(u);
-      ctx.save();
-      ctx.globalAlpha = 0.9 * e;
-      ctx.fillStyle = "rgba(255,255,255,.88)";
-      roundRect(ax + 26, A.y + 22, 44, 28, 8);
-      ctx.fill();
-      ctx.restore();
-    }
-
-    for(const h of hearts){
-      drawHeart(h.x, h.y, h.s, h.rot, h.a);
-    }
+    for(const h of hearts) drawHeart(h.x, h.y, h.s, h.rot, h.a);
 
     ctx.restore();
 
@@ -1085,21 +984,16 @@
     if(scene === SCENE.FINAL){
       const u = clamp(tScene/1.2, 0, 1);
       const e = easeOut(u);
-
       ctx.save();
       ctx.globalAlpha = e;
-
       drawHeart(490, 170, 150, Math.sin(performance.now()/4000)*0.15, 0.95);
-
       ctx.fillStyle = "rgba(255,255,255,.95)";
       ctx.font = "900 58px system-ui, -apple-system, Segoe UI, Roboto, Arial";
       ctx.textAlign = "center";
       ctx.fillText("TE AMO", 490, 192);
-
       ctx.font = "600 16px system-ui, -apple-system, Segoe UI, Roboto, Arial";
       ctx.fillStyle = "rgba(255,255,255,.78)";
       ctx.fillText("Reiniciar: botón o tecla R", 490, 234);
-
       ctx.restore();
       ctx.textAlign = "start";
     }
@@ -1108,50 +1002,63 @@
   function loop(now){
     const dt = Math.min(0.05, (now-last)/1000);
     last = now;
-
-    // si está en vertical, congelamos la animación (opcional). Acá no actualizamos lógica, solo render.
-    if(!lockedPortrait){
-      update(dt);
-    }
+    if(!lockedPortrait) update(dt);
     render(dt);
-
     requestAnimationFrame(loop);
   }
 
-  // Resize / orientation
-  const ro = new ResizeObserver(() => {
-    updateOrientationOverlay();
-    resizeCanvas();
-  });
-  ro.observe(document.getElementById("wrap"));
-
-  window.addEventListener("orientationchange", () => {
-    setTimeout(() => { updateOrientationOverlay(); resizeCanvas(); }, 250);
-  });
-
-  window.addEventListener("resize", () => {
-    updateOrientationOverlay();
-    resizeCanvas();
-  });
-
-  // Intento de autoplay al cargar (funciona en desktop o si el navegador lo permite)
-  window.addEventListener("load", () => {
-    updateOrientationOverlay();
-    resizeCanvas();
+  // Input
+  canvas.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
     showHud();
-    tryStartBgm("load");
+    ensureAudio();
+    tryStartBgm();
+    if (lockedPortrait) return;
+    advance();
+  }, { passive:false });
+
+  document.getElementById("restart").addEventListener("click", () => {
+    ensureAudio();
+    sfxClick();
+    reset();
   });
 
-  // Si el tab vuelve a foco, reintenta (no molesta si el usuario la pausó)
+  window.addEventListener("keydown", (e) => {
+    showHud();
+    if(e.key === " " || e.key === "Enter"){
+      ensureAudio();
+      tryStartBgm();
+      if (!lockedPortrait) advance();
+    }
+    if(e.key.toLowerCase() === "r"){
+      ensureAudio();
+      sfxClick();
+      reset();
+    }
+  });
+
+  // Resize/orientation
+  function onResize(){
+    updateOrientationOverlay();
+    resizeCanvas();
+  }
+  window.addEventListener("resize", onResize);
+  window.addEventListener("orientationchange", () => setTimeout(onResize, 250));
+
+  // Autoplay attempt
+  window.addEventListener("load", () => {
+    onResize();
+    showHud();
+    tryStartBgm();
+  });
   document.addEventListener("visibilitychange", () => {
-    if(!document.hidden) tryStartBgm("visibility");
+    if(!document.hidden) tryStartBgm();
   });
 
   // Init
   onSceneEnter(scene);
   reset();
-  updateOrientationOverlay();
-  resizeCanvas();
+  onResize();
   showHud();
   requestAnimationFrame(loop);
 })();
