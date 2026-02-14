@@ -2,80 +2,285 @@
 <html lang="es">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta
+    name="viewport"
+    content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1,user-scalable=no"
+  />
   <title>Un mini-juego para vos ❤️</title>
+
   <style>
-    html,body{height:100%; margin:0; background:#0b1020; font-family:system-ui, -apple-system, Segoe UI, Roboto, Arial;}
-    #wrap{height:100%; display:grid; place-items:center;}
+    :root{
+      --bg:#0b1020;
+      --pill-bg: rgba(255,255,255,.08);
+      --pill-bd: rgba(255,255,255,.16);
+      --txt: rgba(255,255,255,.92);
+      --btn-bg: rgba(255,255,255,.10);
+      --btn-bd: rgba(255,255,255,.18);
+      --btn-bg-h: rgba(255,255,255,.14);
+      --shadow: 0 25px 80px rgba(0,0,0,.55);
+      --radius: 18px;
+      --safe-top: env(safe-area-inset-top);
+      --safe-bot: env(safe-area-inset-bottom);
+      --safe-left: env(safe-area-inset-left);
+      --safe-right: env(safe-area-inset-right);
+    }
+
+    html,body{
+      height:100%;
+      margin:0;
+      background:var(--bg);
+      font-family:system-ui, -apple-system, Segoe UI, Roboto, Arial;
+      overflow:hidden;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    #wrap{
+      height:100%;
+      width:100%;
+      display:grid;
+      place-items:center;
+      padding: calc(10px + var(--safe-top)) calc(10px + var(--safe-right))
+               calc(10px + var(--safe-bot)) calc(10px + var(--safe-left));
+      box-sizing:border-box;
+    }
+
     canvas{
-      width:min(980px, 100vw);
-      height:auto;
-      border-radius:20px;
-      box-shadow:0 25px 80px rgba(0,0,0,.55);
+      display:block;
+      width: 100%;
+      height: 100%;
+      max-width: 100%;
+      max-height: 100%;
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
       background:
         radial-gradient(900px 600px at 25% 20%, rgba(124,92,255,.28), transparent 60%),
         radial-gradient(900px 600px at 75% 30%, rgba(255,77,141,.22), transparent 60%),
         linear-gradient(180deg, #0b1020, #260a2a);
     }
+
+    /* HUD */
     .hud{
-      position:fixed; left:0; right:0; top:0;
-      display:flex; justify-content:center; padding:10px;
-      pointer-events:none;
+      position:fixed;
+      left:0; right:0; top:0;
+      display:flex;
+      justify-content:center;
+      padding: calc(10px + var(--safe-top)) 10px 10px 10px;
       z-index:10;
+      pointer-events:none;
+      transition: opacity .25s ease, transform .25s ease;
+      opacity: 1;
+      transform: translateY(0);
     }
+    .hud.hidden{
+      opacity: 0;
+      transform: translateY(-10px);
+    }
+
     .pill{
       pointer-events:auto;
-      display:flex; gap:10px; align-items:center;
-      background:rgba(255,255,255,.08);
-      border:1px solid rgba(255,255,255,.16);
-      color:rgba(255,255,255,.9);
+      display:flex;
+      gap:10px;
+      align-items:center;
+      justify-content:center;
+      flex-wrap:wrap;
+      background:var(--pill-bg);
+      border:1px solid var(--pill-bd);
+      color:var(--txt);
       padding:10px 12px;
       border-radius:999px;
       backdrop-filter: blur(10px);
       font-size:13px;
+      max-width: min(980px, calc(100vw - 20px));
+      box-sizing:border-box;
     }
+
+    .hint{
+      opacity:.85;
+      white-space:nowrap;
+    }
+
     button{
-      border:1px solid rgba(255,255,255,.18);
-      background:rgba(255,255,255,.10);
-      color:rgba(255,255,255,.92);
+      border:1px solid var(--btn-bd);
+      background:var(--btn-bg);
+      color:var(--txt);
       padding:8px 10px;
       border-radius:12px;
       cursor:pointer;
       transition: transform .12s ease, background .2s ease;
       white-space:nowrap;
+      touch-action: manipulation;
     }
-    button:hover{background:rgba(255,255,255,.14); transform: translateY(-1px)}
+    button:hover{background:var(--btn-bg-h); transform: translateY(-1px)}
     button:active{transform: translateY(0px) scale(.98)}
-    .hint{opacity:.8}
+
+    @media (max-height: 420px){
+      .pill{ padding:8px 10px; font-size:12px; gap:8px; }
+      button{ padding:7px 9px; border-radius:10px; }
+      canvas{ border-radius: 14px; }
+    }
+
+    @media (prefers-reduced-motion: reduce){
+      button{ transition:none; }
+      .hud{ transition:none; }
+    }
+
+    /* Overlay para vertical */
+    .rotate-overlay{
+      position:fixed;
+      inset:0;
+      display:none;
+      z-index:50;
+      background: rgba(0,0,0,.62);
+      backdrop-filter: blur(10px);
+      padding: calc(20px + var(--safe-top)) calc(20px + var(--safe-right))
+               calc(20px + var(--safe-bot)) calc(20px + var(--safe-left));
+      box-sizing:border-box;
+    }
+    .rotate-overlay.show{
+      display:grid;
+      place-items:center;
+    }
+    .rotate-card{
+      width: min(520px, 100%);
+      background: rgba(255,255,255,.08);
+      border: 1px solid rgba(255,255,255,.18);
+      border-radius: 22px;
+      padding: 18px 18px;
+      color: rgba(255,255,255,.92);
+      text-align:center;
+      box-shadow: var(--shadow);
+    }
+    .rotate-title{
+      font-size: 20px;
+      font-weight: 800;
+      margin: 0 0 6px 0;
+    }
+    .rotate-sub{
+      margin: 0 0 12px 0;
+      opacity: .85;
+      line-height: 1.35;
+    }
+    .phone{
+      width: 84px;
+      height: 150px;
+      border-radius: 18px;
+      border: 2px solid rgba(255,255,255,.35);
+      margin: 10px auto 14px;
+      position: relative;
+      transform: rotate(0deg);
+      animation: wiggle 1.25s ease-in-out infinite;
+    }
+    .phone::before{
+      content:"";
+      position:absolute;
+      left:50%;
+      top:10px;
+      transform: translateX(-50%);
+      width: 34px;
+      height: 6px;
+      border-radius: 99px;
+      background: rgba(255,255,255,.22);
+    }
+    .phone::after{
+      content:"";
+      position:absolute;
+      left:50%;
+      bottom:10px;
+      transform: translateX(-50%);
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      border: 2px solid rgba(255,255,255,.18);
+    }
+    @keyframes wiggle{
+      0%{ transform: rotate(0deg) }
+      45%{ transform: rotate(-10deg) }
+      55%{ transform: rotate(-10deg) }
+      100%{ transform: rotate(0deg) }
+    }
   </style>
 </head>
+
 <body>
-  <div class="hud">
+  <div class="hud" id="hud">
     <div class="pill">
-      <span class="hint" id="hint">Click para avanzar</span>
-      <button id="btnBgm">▶️ Música</button>
-      <button id="restart">Reiniciar</button>
+      <span class="hint" id="hint">Tocá para avanzar</span>
+      <button id="btnBgm" type="button">🎵 Música: Auto</button>
+      <button id="restart" type="button">Reiniciar</button>
     </div>
   </div>
 
   <div id="wrap">
-    <canvas id="c" width="980" height="560"></canvas>
+    <canvas id="c"></canvas>
   </div>
 
-  <!-- 🟣 ESPACIO PARA TU MÚSICA DE FONDO:
-       1) Poné tu archivo en la misma carpeta, ej: "musica.mp3"
-       2) Cambiá el src abajo
-       3) Ajustá el volumen en JS (bgm.volume = 0.12) -->
-  <audio id="bgm" src="musica.mp3" loop preload="auto"></audio>
+  <!-- Overlay vertical -->
+  <div class="rotate-overlay" id="rotateOverlay" aria-hidden="true">
+    <div class="rotate-card">
+      <p class="rotate-title">Girá el celular 📱➡️</p>
+      <p class="rotate-sub">Este mini-juego está pensado para pantalla <b>horizontal</b>.</p>
+      <div class="phone" aria-hidden="true"></div>
+      <p class="rotate-sub" style="margin:0; opacity:.75">Cuando estés en horizontal, continúa tocando 💞</p>
+    </div>
+  </div>
+
+  <!-- Poné tu archivo musical acá -->
+  <audio id="bgm" src="musica.mp3" loop preload="auto" playsinline></audio>
 
 <script>
 (() => {
   const canvas = document.getElementById("c");
-  const ctx = canvas.getContext("2d");
+  const ctx = canvas.getContext("2d", { alpha: true });
+
+  const hud = document.getElementById("hud");
+  const rotateOverlay = document.getElementById("rotateOverlay");
+
+  // ===== "Resolución lógica" del juego =====
+  const BASE_W = 980;
+  const BASE_H = 560;
+  const BASE_RATIO = BASE_W / BASE_H;
+
+  function getDPR(){
+    return Math.min(2, window.devicePixelRatio || 1);
+  }
+
+  function resizeCanvas(){
+    const wrap = document.getElementById("wrap");
+    const rect = wrap.getBoundingClientRect();
+
+    const availW = Math.max(1, rect.width);
+    const availH = Math.max(1, rect.height);
+
+    let cssW = availW;
+    let cssH = cssW / BASE_RATIO;
+    if (cssH > availH){
+      cssH = availH;
+      cssW = cssH * BASE_RATIO;
+    }
+
+    canvas.style.width = cssW + "px";
+    canvas.style.height = cssH + "px";
+
+    const dpr = getDPR();
+    canvas.width = Math.round(cssW * dpr);
+    canvas.height = Math.round(cssH * dpr);
+
+    ctx.setTransform(1,0,0,1,0,0);
+    ctx.scale(canvas.width / BASE_W, canvas.height / BASE_H);
+  }
+
+  // ===== Anti zoom doble tap (iOS) =====
+  let lastTap = 0;
+  canvas.addEventListener("touchend", (e) => {
+    const now = Date.now();
+    if (now - lastTap < 300) e.preventDefault();
+    lastTap = now;
+  }, { passive: false });
 
   // ===== PERSONALIZÁ ACÁ =====
-  const NOMBRE = "mi vida";                 // ej: "Luciano" / "amor"
-  const FIRMA  = "— Augus ❤️";         // tu firma
+  const NOMBRE = "mi vida";
+  const FIRMA  = "— Augus ❤️";
   const CARTA = [
     `Hola ${NOMBRE}.\n\n`,
     "Hoy te hice un pequeño jueguito porque con vos\n",
@@ -122,11 +327,46 @@
   const btnBgm = document.getElementById("btnBgm");
   const bgm = document.getElementById("bgm");
 
-  // BGM: volumen suave para no molestar
+  // ===== Música automática (con fallback por políticas móviles) =====
   bgm.volume = 0.30;
   let bgmPlaying = false;
+  let userMuted = false; // si el usuario la pausa, no la vuelvo a auto-reanudar
 
-  // Audio FX (generados con WebAudio, sin archivos)
+  async function tryStartBgm(reason){
+    if (userMuted) return;
+    if (bgmPlaying) return;
+    try{
+      await bgm.play();
+      bgmPlaying = true;
+      btnBgm.textContent = "⏸️ Música";
+    }catch(_){
+      // En móviles lo más normal es que falle hasta que haya interacción.
+      // No molestamos con alert: lo resolvemos con "primer toque".
+      btnBgm.textContent = "🎵 Música: Tocá para iniciar";
+    }
+  }
+
+  btnBgm.addEventListener("click", async () => {
+    ensureAudio();
+    sfxClick();
+    try{
+      if(!bgmPlaying){
+        userMuted = false;
+        await bgm.play();
+        bgmPlaying = true;
+        btnBgm.textContent = "⏸️ Música";
+      }else{
+        bgm.pause();
+        bgmPlaying = false;
+        userMuted = true;
+        btnBgm.textContent = "▶️ Música";
+      }
+    }catch(_){
+      btnBgm.textContent = "🎵 Música: Tocá para iniciar";
+    }
+  });
+
+  // ===== Audio FX (WebAudio) =====
   let audioCtx = null;
 
   function ensureAudio(){
@@ -181,7 +421,6 @@
     src.stop(t0 + dur + 0.02);
   }
 
-  // FX temáticos
   function sfxClick(){ playTone({freq:520, type:"triangle", dur:0.06, vol:0.10, slideTo:640}); }
   function sfxKiss(){
     playNoiseBurst({dur:0.06, vol:0.08, highpass:1200});
@@ -200,28 +439,73 @@
     playTone({freq:659, type:"sine", dur:0.18, vol:0.10, slideTo:784});
   }
 
-  document.getElementById("restart").addEventListener("click", () => { ensureAudio(); sfxClick(); reset(); });
-  canvas.addEventListener("click", () => { ensureAudio(); advance(); });
-  window.addEventListener("keydown", (e) => {
-    if(e.key === " " || e.key === "Enter"){ ensureAudio(); advance(); }
-    if(e.key.toLowerCase() === "r"){ ensureAudio(); sfxClick(); reset(); }
+  // ===== HUD auto-hide =====
+  let hudTimer = null;
+  function showHud(){
+    hud.classList.remove("hidden");
+    scheduleHideHud();
+  }
+  function scheduleHideHud(){
+    if(hudTimer) clearTimeout(hudTimer);
+    hudTimer = setTimeout(() => {
+      hud.classList.add("hidden");
+    }, 2000);
+  }
+
+  // Mostramos HUD ante cualquier interacción
+  ["pointerdown","pointermove","touchstart","keydown","wheel"].forEach(evt => {
+    window.addEventListener(evt, () => showHud(), { passive:true });
   });
 
-  btnBgm.addEventListener("click", async () => {
+  // ===== Overlay de orientación =====
+  function isPortrait(){
+    // Más confiable que orientation API vieja:
+    return window.innerHeight > window.innerWidth;
+  }
+  let lockedPortrait = false;
+
+  function updateOrientationOverlay(){
+    const portrait = isPortrait();
+    lockedPortrait = portrait;
+    rotateOverlay.classList.toggle("show", portrait);
+    rotateOverlay.setAttribute("aria-hidden", portrait ? "false" : "true");
+  }
+
+  // ===== Controles: pointer/tap =====
+  canvas.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+
+    // 1) habilita audio webaudio
+    ensureAudio();
+
+    // 2) intenta arrancar bgm (si el navegador permite o ya hubo interacción)
+    tryStartBgm("pointer");
+
+    // 3) si está en vertical, no avanzamos
+    if (lockedPortrait) return;
+
+    // 4) avanzar
+    advance();
+  }, { passive:false });
+
+  // Botones
+  document.getElementById("restart").addEventListener("click", () => {
     ensureAudio();
     sfxClick();
-    try{
-      if(!bgmPlaying){
-        await bgm.play();
-        bgmPlaying = true;
-        btnBgm.textContent = "⏸️ Música";
-      }else{
-        bgm.pause();
-        bgmPlaying = false;
-        btnBgm.textContent = "▶️ Música";
-      }
-    }catch(e){
-      alert("Tu navegador bloqueó el audio. Tocá el botón otra vez.");
+    reset();
+  });
+
+  // Teclado
+  window.addEventListener("keydown", (e) => {
+    if(e.key === " " || e.key === "Enter"){
+      ensureAudio();
+      tryStartBgm("key");
+      if (!lockedPortrait) advance();
+    }
+    if(e.key.toLowerCase() === "r"){
+      ensureAudio();
+      sfxClick();
+      reset();
     }
   });
 
@@ -241,7 +525,7 @@
     cam.x = camTarget.x = 490;
     cam.y = camTarget.y = 280;
     cam.zoom = camTarget.zoom = 1;
-    setHint("Click para avanzar");
+    setHint("Tocá para avanzar");
   }
 
   // Helpers
@@ -297,7 +581,7 @@
     ctx.closePath();
   }
 
-  // -------- Fondo con más detalles --------
+  // Fondo
   const clouds = Array.from({length:6}, (_,i) => ({
     x: 120 + i*150,
     y: 95 + (i%3)*22,
@@ -454,7 +738,7 @@
     roundRect(bench.x + bench.w/2 - 78, bench.y+12, 18, 60, 8); ctx.fill();
   }
 
-  // -------- Stickmans --------
+  // Stickmans
   function drawStickman(p){
     const headR = 16;
     const line = 4;
@@ -536,7 +820,7 @@
     }
   }
 
-  // -------- Carta overlay --------
+  // Carta overlay
   function wrapText(text, x, y, maxWidth, lineHeight){
     const lines = text.split("\n");
     let cy = y;
@@ -561,7 +845,7 @@
     ctx.save();
     ctx.globalAlpha = 0.55 * openAmount;
     ctx.fillStyle = "black";
-    ctx.fillRect(0,0,980,560);
+    ctx.fillRect(0,0,BASE_W,BASE_H);
     ctx.restore();
 
     const w = 720, h = 420;
@@ -586,12 +870,12 @@
 
     ctx.fillStyle = "rgba(0,0,0,.55)";
     ctx.font = "13px system-ui, -apple-system, Segoe UI, Roboto, Arial";
-    ctx.fillText("Click para cerrar (o click durante lectura para mostrar todo)", x+28, y+h-24);
+    ctx.fillText("Tocá para cerrar (o tocá durante lectura para mostrar todo)", x+28, y+h-24);
 
     ctx.restore();
   }
 
-  // -------- Control de escena + FX disparados una vez --------
+  // Escena + FX
   let fired = { kiss:false, kneel:false, paper:false, final:false };
 
   function onSceneEnter(s){
@@ -601,7 +885,7 @@
     else if(s === SCENE.CARTA) setHint("Leyendo...");
     else if(s === SCENE.ABRAZO) setHint("🫂");
     else if(s === SCENE.FINAL) setHint("Te amo ❤️  (R para reiniciar)");
-    else setHint("Click para avanzar");
+    else setHint("Tocá para avanzar");
   }
 
   function advance(){
@@ -748,7 +1032,7 @@
   }
 
   function render(dt){
-    ctx.clearRect(0,0,980,560);
+    ctx.clearRect(0,0,BASE_W,BASE_H);
 
     ctx.save();
     ctx.translate(490, 280);
@@ -824,13 +1108,51 @@
   function loop(now){
     const dt = Math.min(0.05, (now-last)/1000);
     last = now;
-    update(dt);
+
+    // si está en vertical, congelamos la animación (opcional). Acá no actualizamos lógica, solo render.
+    if(!lockedPortrait){
+      update(dt);
+    }
     render(dt);
+
     requestAnimationFrame(loop);
   }
 
+  // Resize / orientation
+  const ro = new ResizeObserver(() => {
+    updateOrientationOverlay();
+    resizeCanvas();
+  });
+  ro.observe(document.getElementById("wrap"));
+
+  window.addEventListener("orientationchange", () => {
+    setTimeout(() => { updateOrientationOverlay(); resizeCanvas(); }, 250);
+  });
+
+  window.addEventListener("resize", () => {
+    updateOrientationOverlay();
+    resizeCanvas();
+  });
+
+  // Intento de autoplay al cargar (funciona en desktop o si el navegador lo permite)
+  window.addEventListener("load", () => {
+    updateOrientationOverlay();
+    resizeCanvas();
+    showHud();
+    tryStartBgm("load");
+  });
+
+  // Si el tab vuelve a foco, reintenta (no molesta si el usuario la pausó)
+  document.addEventListener("visibilitychange", () => {
+    if(!document.hidden) tryStartBgm("visibility");
+  });
+
+  // Init
   onSceneEnter(scene);
   reset();
+  updateOrientationOverlay();
+  resizeCanvas();
+  showHud();
   requestAnimationFrame(loop);
 })();
 </script>
