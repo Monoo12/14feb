@@ -2,305 +2,177 @@
 <html lang="es">
 <head>
   <meta charset="utf-8" />
-  <meta
-    name="viewport"
-    content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1,user-scalable=no"
-  />
-
-  <!-- PWA / iOS "Agregar a pantalla de inicio" (quita barras en modo web-app) -->
-  <meta name="theme-color" content="#0b1020" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="apple-mobile-web-app-title" content="MiniJuego" />
-
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Un mini-juego para vos ❤️</title>
-
   <style>
-    :root{
-      --bg:#0b1020;
-      --pill-bg: rgba(255,255,255,.08);
-      --pill-bd: rgba(255,255,255,.16);
-      --txt: rgba(255,255,255,.92);
-      --btn-bg: rgba(255,255,255,.10);
-      --btn-bd: rgba(255,255,255,.18);
-      --btn-bg-h: rgba(255,255,255,.14);
-
-      --safe-top: env(safe-area-inset-top);
-      --safe-bot: env(safe-area-inset-bottom);
-      --safe-left: env(safe-area-inset-left);
-      --safe-right: env(safe-area-inset-right);
-    }
-
-    html,body{
-      height:100%;
-      margin:0;
-      background:var(--bg);
-      font-family:system-ui, -apple-system, Segoe UI, Roboto, Arial;
-      overflow:hidden;                 /* clave */
-      overscroll-behavior: none;       /* evita rebote */
-      touch-action: manipulation;      /* menos gestos raros */
-      -webkit-tap-highlight-color: transparent;
-    }
-
-    body{
-      position: fixed;  /* evita scroll que revela barras */
-      inset: 0;
-      width: 100vw;
-      height: 100vh;
-      height: 100svh;
-      height: 100dvh;
-    }
-
-    /* FULLSCREEN real */
-    #stage{
-      position: fixed;
-      inset: 0;
-      width: 100vw;
-      height: 100vh;
-      height: 100svh;
-      height: 100dvh;
-      background: var(--bg);
-      overflow: hidden;
-    }
-
+    html,body{height:100%; margin:0; background:#0b1020; font-family:system-ui, -apple-system, Segoe UI, Roboto, Arial;}
+    #wrap{height:100%; display:grid; place-items:center;}
     canvas{
-      position: absolute;
-      inset: 0;
-      width: 100%;
-      height: 100%;
-      display:block;
+      width:min(980px, 100vw);
+      height:auto;
+      border-radius:20px;
+      box-shadow:0 25px 80px rgba(0,0,0,.55);
       background:
         radial-gradient(900px 600px at 25% 20%, rgba(124,92,255,.28), transparent 60%),
         radial-gradient(900px 600px at 75% 30%, rgba(255,77,141,.22), transparent 60%),
         linear-gradient(180deg, #0b1020, #260a2a);
-      border-radius: 0;
     }
-
-    /* HUD */
     .hud{
-      position:fixed;
-      left:0; right:0; top:0;
-      display:flex;
-      justify-content:center;
-      padding: calc(10px + var(--safe-top)) calc(10px + var(--safe-right))
-               10px calc(10px + var(--safe-left));
-      z-index:10;
+      position:fixed; left:0; right:0; top:0;
+      display:flex; justify-content:center; padding:10px;
       pointer-events:none;
-      transition: opacity .25s ease, transform .25s ease;
-      opacity: 1;
-      transform: translateY(0);
+      z-index:10;
     }
-    .hud.hidden{
-      opacity: 0;
-      transform: translateY(-10px);
-    }
-
     .pill{
       pointer-events:auto;
-      display:flex;
-      gap:10px;
-      align-items:center;
-      justify-content:center;
-      flex-wrap:wrap;
-      background:var(--pill-bg);
-      border:1px solid var(--pill-bd);
-      color:var(--txt);
+      display:flex; gap:10px; align-items:center;
+      background:rgba(255,255,255,.08);
+      border:1px solid rgba(255,255,255,.16);
+      color:rgba(255,255,255,.9);
       padding:10px 12px;
       border-radius:999px;
       backdrop-filter: blur(10px);
       font-size:13px;
-      max-width: min(980px, calc(100vw - 20px));
-      box-sizing:border-box;
     }
-
-    .hint{ opacity:.85; white-space:nowrap; }
-
     button{
-      border:1px solid var(--btn-bd);
-      background:var(--btn-bg);
-      color:var(--txt);
+      border:1px solid rgba(255,255,255,.18);
+      background:rgba(255,255,255,.10);
+      color:rgba(255,255,255,.92);
       padding:8px 10px;
       border-radius:12px;
       cursor:pointer;
       transition: transform .12s ease, background .2s ease;
       white-space:nowrap;
+    }
+    button:hover{background:rgba(255,255,255,.14); transform: translateY(-1px)}
+    button:active{transform: translateY(0px) scale(.98)}
+    .hint{opacity:.8}
+  
+    /* ===== Responsive / Android gate ===== */
+    #wrap{
+      padding: 16px;
+      box-sizing: border-box;
+    }
+    canvas{
+      max-width: 100%;
+      height: auto;
       touch-action: manipulation;
     }
-    button:hover{background:var(--btn-bg-h); transform: translateY(-1px)}
-    button:active{transform: translateY(0px) scale(.98)}
-
-    @media (max-height: 420px){
-      .pill{ padding:8px 10px; font-size:12px; gap:8px; }
-      button{ padding:7px 9px; border-radius:10px; }
+    .primary{
+      background: rgba(255,77,141,.18);
+      border-color: rgba(255,77,141,.35);
     }
 
-    /* Overlay para vertical */
-    .rotate-overlay{
-      position:fixed;
-      inset:0;
-      display:none;
-      z-index:50;
-      background: rgba(0,0,0,.62);
+    #gate{
+      position: fixed;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      padding: 22px;
+      z-index: 9999;
+      background: radial-gradient(900px 600px at 25% 20%, rgba(124,92,255,.22), transparent 60%),
+                  radial-gradient(900px 600px at 75% 30%, rgba(255,77,141,.18), transparent 60%),
+                  rgba(11,16,32,.92);
       backdrop-filter: blur(10px);
-      padding: calc(20px + var(--safe-top)) calc(20px + var(--safe-right))
-               calc(20px + var(--safe-bot)) calc(20px + var(--safe-left));
-      box-sizing:border-box;
     }
-    .rotate-overlay.show{ display:grid; place-items:center; }
+    #gate[aria-hidden="true"]{ display:none; }
 
-    .rotate-card{
+    .gateCard{
       width: min(520px, 100%);
       background: rgba(255,255,255,.08);
-      border: 1px solid rgba(255,255,255,.18);
+      border: 1px solid rgba(255,255,255,.16);
       border-radius: 22px;
-      padding: 18px 18px;
+      padding: 18px 18px 16px;
+      box-shadow: 0 25px 80px rgba(0,0,0,.55);
       color: rgba(255,255,255,.92);
-      text-align:center;
     }
-    .rotate-title{ font-size: 20px; font-weight: 800; margin: 0 0 6px 0; }
-    .rotate-sub{ margin: 0 0 12px 0; opacity: .85; line-height: 1.35; }
+    .gateTitle{
+      font-weight: 800;
+      font-size: 18px;
+      margin-bottom: 10px;
+      letter-spacing: .2px;
+    }
+    .gateText{
+      opacity: .9;
+      font-size: 14px;
+      line-height: 1.35;
+    }
+    .gateRow{
+      display:flex;
+      gap:10px;
+      margin-top: 14px;
+      align-items:center;
+      justify-content:flex-end;
+    }
+    .gateBtn{
+      border: 1px solid rgba(255,255,255,.22);
+      background: rgba(255,77,141,.20);
+      color: rgba(255,255,255,.95);
+      padding: 10px 12px;
+      border-radius: 14px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .gateBtn:disabled{
+      opacity: .45;
+      cursor: not-allowed;
+      transform: none;
+    }
+    .gateSmall{
+      margin-top: 10px;
+      font-size: 12px;
+      opacity: .75;
+    }
 
-    .phone{
-      width: 84px; height: 150px;
-      border-radius: 18px;
-      border: 2px solid rgba(255,255,255,.35);
-      margin: 10px auto 14px;
-      position: relative;
-      animation: wiggle 1.25s ease-in-out infinite;
+    @media (max-width: 420px){
+      .pill{ font-size: 12px; gap: 8px; padding: 10px 10px; }
+      button{ padding: 8px 9px; }
     }
-    .phone::before{
-      content:"";
-      position:absolute;
-      left:50%; top:10px;
-      transform: translateX(-50%);
-      width: 34px; height: 6px;
-      border-radius: 99px;
-      background: rgba(255,255,255,.22);
-    }
-    .phone::after{
-      content:"";
-      position:absolute;
-      left:50%; bottom:10px;
-      transform: translateX(-50%);
-      width: 22px; height: 22px;
-      border-radius: 50%;
-      border: 2px solid rgba(255,255,255,.18);
-    }
-    @keyframes wiggle{
-      0%{ transform: rotate(0deg) }
-      45%{ transform: rotate(-10deg) }
-      55%{ transform: rotate(-10deg) }
-      100%{ transform: rotate(0deg) }
-    }
+
   </style>
 </head>
-
 <body>
-  <div class="hud" id="hud">
+  <!-- Gate/Onboarding para mobile (landscape + fullscreen + audio) -->
+  <div id="gate" aria-hidden="false">
+    <div class="gateCard">
+      <div class="gateTitle">📱 Poné el teléfono horizontal</div>
+      <div class="gateText" id="gateText">
+        Para vivir la experiencia completa, rotá a <b>horizontal</b> y tocá <b>Empezar</b>.
+        Ese botón activa <b>pantalla completa</b> (sin recortes) y la <b>música</b>.
+      </div>
+      <div class="gateRow">
+        <button id="gateBtn" class="gateBtn" disabled>🚀 Empezar</button>
+      </div>
+      <div class="gateSmall" id="gateSmall">Esperando modo horizontal…</div>
+    </div>
+  </div>
+
+  <div class="hud">
     <div class="pill">
-      <span class="hint" id="hint">Tocá para avanzar</span>
-      <button id="btnBgm" type="button">🎵 Música: Auto</button>
-      <button id="restart" type="button">Reiniciar</button>
+      <span class="hint" id="hint">Rotá el teléfono y tocá Empezar</span>
+      <button id="btnStart" class="primary">🚀 Empezar</button>
+      <button id="restart" disabled>Reiniciar</button>
     </div>
   </div>
 
-  <div id="stage">
-    <canvas id="c"></canvas>
+  <div id="wrap">
+    <canvas id="c" width="980" height="560"></canvas>
   </div>
 
-  <div class="rotate-overlay" id="rotateOverlay" aria-hidden="true">
-    <div class="rotate-card">
-      <p class="rotate-title">Girá el celular 📱➡️</p>
-      <p class="rotate-sub">Este mini-juego está pensado para pantalla <b>horizontal</b>.</p>
-      <div class="phone" aria-hidden="true"></div>
-      <p class="rotate-sub" style="margin:0; opacity:.75">Cuando estés en horizontal, tocá para continuar 💞</p>
-    </div>
-  </div>
-
-  <audio id="bgm" src="musica.mp3" loop preload="auto" playsinline></audio>
+  <!-- 🟣 ESPACIO PARA TU MÚSICA DE FONDO:
+       1) Poné tu archivo en la misma carpeta, ej: "musica.mp3"
+       2) Cambiá el src abajo
+       3) Ajustá el volumen en JS (bgm.volume = 0.12) -->
+  <audio id="bgm" src="musica.mp3" loop preload="auto"></audio>
 
 <script>
 (() => {
   const canvas = document.getElementById("c");
-  const stage  = document.getElementById("stage");
-  const ctx = canvas.getContext("2d", { alpha: true });
-
-  const hud = document.getElementById("hud");
-  const rotateOverlay = document.getElementById("rotateOverlay");
-
-  // ===== Fullscreen helpers (oculta UI en Android/Chrome, en iOS solo en modo "Agregar al inicio") =====
-  function isFullscreen(){
-    return !!(document.fullscreenElement || document.webkitFullscreenElement);
-  }
-
-  async function requestFullscreen(){
-    try{
-      const el = stage;
-      // Chrome Android: navigationUI:'hide' suele ayudar
-      if (el.requestFullscreen) await el.requestFullscreen({ navigationUI: "hide" });
-      else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen(); // Safari desktop
-    }catch(_){}
-  }
-
-  async function lockLandscape(){
-    // Funciona en Android/Chrome usualmente (en iOS casi nunca)
-    try{
-      if (screen.orientation && screen.orientation.lock) {
-        await screen.orientation.lock("landscape");
-      }
-    }catch(_){}
-  }
-
-  function hideBrowserUIAggressive(){
-    // No garantiza, pero ayuda a que Chrome esconda barras
-    window.scrollTo(0, 1);
-    // reintento corto por si cambió viewport
-    setTimeout(() => window.scrollTo(0, 1), 50);
-  }
-
-  // ===== Resolución lógica del juego =====
-  const BASE_W = 980;
-  const BASE_H = 560;
-
-  function getDPR(){
-    return Math.min(2, window.devicePixelRatio || 1);
-  }
-
-  // MODO B (CONTAIN): no recorta, centra, puede dejar barras
-  function resizeCanvas(){
-    const rect = stage.getBoundingClientRect();
-    const cssW = Math.max(1, rect.width);
-    const cssH = Math.max(1, rect.height);
-
-    const dpr = getDPR();
-    canvas.width  = Math.round(cssW * dpr);
-    canvas.height = Math.round(cssH * dpr);
-
-    const scaleX = canvas.width  / BASE_W;
-    const scaleY = canvas.height / BASE_H;
-    const scale  = Math.min(scaleX, scaleY); // CONTAIN ✅
-
-    const worldPxW = BASE_W * scale;
-    const worldPxH = BASE_H * scale;
-    const offsetX = (canvas.width  - worldPxW) / 2;
-    const offsetY = (canvas.height - worldPxH) / 2;
-
-    ctx.setTransform(1,0,0,1,0,0);
-    ctx.translate(offsetX, offsetY);
-    ctx.scale(scale, scale);
-  }
-
-  // Anti zoom doble tap iOS
-  let lastTap = 0;
-  canvas.addEventListener("touchend", (e) => {
-    const now = Date.now();
-    if (now - lastTap < 300) e.preventDefault();
-    lastTap = now;
-  }, { passive:false });
+  const ctx = canvas.getContext("2d");
 
   // ===== PERSONALIZÁ ACÁ =====
-  const NOMBRE = "mi vida";
-  const FIRMA  = "— Augus ❤️";
+  const NOMBRE = "mi vida";                 // ej: "Luciano" / "amor"
+  const FIRMA  = "— Augus ❤️";         // tu firma
   const CARTA = [
     `Hola ${NOMBRE}.\n\n`,
     "Hoy te hice un pequeño jueguito porque con vos\n",
@@ -319,56 +191,52 @@
   let tScene = 0;
   let last = performance.now();
 
+  // carta
   let typed = "";
   let typeIndex = 0;
   let typeTimer = 0;
 
+  // corazones
   const hearts = [];
 
+  // ambiente
   const groundY = 420;
   const bench = { x: 490, y: 360, w: 420, h: 18 };
 
+  // Pose variables (suavizadas)
   const A = { name:"A", x: 430, y: 320, kneel:0, kiss:0, hug:0 };
   const B = { name:"B", x: 555, y: 320, kneel:0, kiss:0, hug:0 };
+
+  // Posiciones suavizadas
   let ax = A.x, bx = B.x;
 
+  // Cámara (zoom)
   const cam = { x:490, y:280, zoom:1 };
   const camTarget = { x:490, y:280, zoom:1 };
 
+  // UI
   const hint = document.getElementById("hint");
-  const btnBgm = document.getElementById("btnBgm");
+  const btnStart = document.getElementById("btnStart");
+  const gate = document.getElementById("gate");
+  const gateBtn = document.getElementById("gateBtn");
+  const gateSmall = document.getElementById("gateSmall");
+  const gateText = document.getElementById("gateText");
   const bgm = document.getElementById("bgm");
 
-  // Música auto
+  // Gate state
+  let started = false;
+
+  // BGM: volumen suave para no molestar
   bgm.volume = 0.30;
   let bgmPlaying = false;
-  let userMuted = false;
 
-  async function tryStartBgm(){
-    if (userMuted || bgmPlaying) return;
-    try{ await bgm.play(); bgmPlaying = true; btnBgm.textContent = "⏸️ Música"; }
-    catch(_){ btnBgm.textContent = "🎵 Música: Tocá para iniciar"; }
-  }
-
-  btnBgm.addEventListener("click", async () => {
-    ensureAudio(); sfxClick();
-    try{
-      if(!bgmPlaying){
-        userMuted = false;
-        await bgm.play(); bgmPlaying = true;
-        btnBgm.textContent = "⏸️ Música";
-      }else{
-        bgm.pause(); bgmPlaying = false;
-        userMuted = true;
-        btnBgm.textContent = "▶️ Música";
-      }
-    }catch(_){ btnBgm.textContent = "🎵 Música: Tocá para iniciar"; }
-  });
-
-  // WebAudio FX
+  // Audio FX (generados con WebAudio, sin archivos)
   let audioCtx = null;
+
   function ensureAudio(){
-    if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if(!audioCtx){
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
     if(audioCtx.state === "suspended") audioCtx.resume();
   }
 
@@ -379,12 +247,15 @@
     const g = audioCtx.createGain();
     o.type = type;
     o.frequency.setValueAtTime(freq, t0);
-    if(slideTo) o.frequency.exponentialRampToValueAtTime(Math.max(20, slideTo), t0 + dur);
+    if(slideTo){
+      o.frequency.exponentialRampToValueAtTime(Math.max(20, slideTo), t0 + dur);
+    }
     g.gain.setValueAtTime(0.0001, t0);
     g.gain.exponentialRampToValueAtTime(vol, t0 + 0.01);
     g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
     o.connect(g); g.connect(audioCtx.destination);
-    o.start(t0); o.stop(t0 + dur + 0.02);
+    o.start(t0);
+    o.stop(t0 + dur + 0.02);
   }
 
   function playNoiseBurst({dur=0.10, vol=0.10, highpass=900}){
@@ -397,16 +268,24 @@
       const env = Math.pow(1 - i/bufferSize, 2.2);
       data[i] = (Math.random()*2 - 1) * env;
     }
-    const src = audioCtx.createBufferSource(); src.buffer = buffer;
-    const hp = audioCtx.createBiquadFilter(); hp.type="highpass"; hp.frequency.setValueAtTime(highpass, t0);
+    const src = audioCtx.createBufferSource();
+    src.buffer = buffer;
+
+    const hp = audioCtx.createBiquadFilter();
+    hp.type = "highpass";
+    hp.frequency.setValueAtTime(highpass, t0);
+
     const g = audioCtx.createGain();
     g.gain.setValueAtTime(0.0001, t0);
     g.gain.exponentialRampToValueAtTime(vol, t0 + 0.01);
     g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+
     src.connect(hp); hp.connect(g); g.connect(audioCtx.destination);
-    src.start(t0); src.stop(t0 + dur + 0.02);
+    src.start(t0);
+    src.stop(t0 + dur + 0.02);
   }
 
+  // FX temáticos
   function sfxClick(){ playTone({freq:520, type:"triangle", dur:0.06, vol:0.10, slideTo:640}); }
   function sfxKiss(){
     playNoiseBurst({dur:0.06, vol:0.08, highpass:1200});
@@ -425,26 +304,99 @@
     playTone({freq:659, type:"sine", dur:0.18, vol:0.10, slideTo:784});
   }
 
-  // HUD auto-hide
-  let hudTimer = null;
-  function showHud(){ hud.classList.remove("hidden"); scheduleHideHud(); }
-  function scheduleHideHud(){
-    if(hudTimer) clearTimeout(hudTimer);
-    hudTimer = setTimeout(() => hud.classList.add("hidden"), 2000);
-  }
-  ["pointerdown","pointermove","touchstart","keydown","wheel"].forEach(evt => {
-    window.addEventListener(evt, () => showHud(), { passive:true });
+  document.getElementById("restart").addEventListener("click", () => { ensureAudio(); if(!started) return; sfxClick(); reset(); });
+  canvas.addEventListener("click", () => { ensureAudio(); if(!started) return; advance(); });
+  window.addEventListener("keydown", (e) => {
+    if(e.key === " " || e.key === "Enter"){ ensureAudio(); if(!started) return; advance(); }
+    if(e.key.toLowerCase() === "r"){ ensureAudio(); sfxClick(); reset(); }
   });
 
-  // Orientación
-  function isPortrait(){ return window.innerHeight > window.innerWidth; }
-  let lockedPortrait = false;
-  function updateOrientationOverlay(){
-    const portrait = isPortrait();
-    lockedPortrait = portrait;
-    rotateOverlay.classList.toggle("show", portrait);
-    rotateOverlay.setAttribute("aria-hidden", portrait ? "false" : "true");
+
+  // ---------- Gate / Fullscreen / Orientation ----------
+  function isLandscape(){
+    return window.matchMedia && window.matchMedia("(orientation: landscape)").matches;
   }
+
+  function setGateVisible(v){
+    gate.setAttribute("aria-hidden", v ? "false" : "true");
+  }
+
+  function updateGateUI(){
+    const ok = isLandscape();
+    gateBtn.disabled = !ok;
+    btnStart.disabled = !ok;
+    if(started){
+      setGateVisible(false);
+      document.getElementById("restart").disabled = false;
+      setHint("Click para avanzar");
+      return;
+    }
+    // no empezó todavía
+    setGateVisible(true);
+    document.getElementById("restart").disabled = true;
+    if(ok){
+      gateSmall.textContent = "Listo ✅ Tocá Empezar para pantalla completa + música.";
+    }else{
+      gateSmall.textContent = "Esperando modo horizontal…";
+    }
+  }
+
+  async function requestFullscreenSafe(){
+    // Intento de fullscreen: para móviles, suele funcionar mejor con documentElement
+    const el = document.documentElement;
+    const req = el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen;
+    if(req) await req.call(el);
+  }
+
+  async function lockOrientationIfPossible(){
+    try{
+      if(screen.orientation && screen.orientation.lock){
+        await screen.orientation.lock("landscape");
+      }
+    }catch(e){
+      // Ignorar: muchos navegadores no permiten lock sin condiciones
+    }
+  }
+
+  async function startExperience(){
+    if(started) return;
+    if(!isLandscape()){
+      updateGateUI();
+      return;
+    }
+
+    ensureAudio();
+    sfxClick();
+
+    // Fullscreen + ocultar UI del navegador (cuando sea posible)
+    try{
+      await requestFullscreenSafe();
+    }catch(e){
+      // Si falla fullscreen, igual permitimos empezar
+    }
+    await lockOrientationIfPossible();
+
+    // Música (requiere gesto de usuario -> este click)
+    try{
+      await bgm.play();
+      bgmPlaying = true;
+    }catch(e){
+      // Si el navegador bloquea, igual arrancamos sin música
+      bgmPlaying = false;
+    }
+
+    started = true;
+    updateGateUI();
+  }
+
+  // Click en ambos botones (HUD y Gate)
+  gateBtn.addEventListener("click", startExperience);
+  btnStart.addEventListener("click", startExperience);
+
+  // Actualizar UI al rotar / cambiar tamaño
+  window.addEventListener("orientationchange", () => setTimeout(updateGateUI, 150));
+  window.addEventListener("resize", () => setTimeout(updateGateUI, 100));
+  document.addEventListener("fullscreenchange", updateGateUI);
 
   function setHint(s){ hint.textContent = s; }
 
@@ -462,27 +414,35 @@
     cam.x = camTarget.x = 490;
     cam.y = camTarget.y = 280;
     cam.zoom = camTarget.zoom = 1;
-    setHint("Tocá para avanzar");
+    setHint("Click para avanzar");
   }
 
+  // Helpers
   function lerp(a,b,t){ return a + (b-a)*t; }
   function clamp(x,a,b){ return Math.max(a, Math.min(b,x)); }
   function easeOut(t){ return 1 - Math.pow(1-t, 3); }
   function easeInOut(t){ return t<.5 ? 4*t*t*t : 1 - Math.pow(-2*t+2,3)/2; }
-  function damp(current, target, lambda, dt){ return lerp(current, target, 1 - Math.exp(-lambda * dt)); }
+  function damp(current, target, lambda, dt){
+    return lerp(current, target, 1 - Math.exp(-lambda * dt));
+  }
 
   function spawnHeart(x,y,scale=1){
     hearts.push({
-      x,y, vx:(-0.6 + Math.random()*1.2), vy:(-1.6 - Math.random()*1.2),
-      a:0.95, s:(10 + Math.random()*12)*scale,
-      rot:Math.random()*Math.PI, vr:(-0.06 + Math.random()*0.12),
+      x,y,
+      vx: (-0.6 + Math.random()*1.2),
+      vy: (-1.6 - Math.random()*1.2),
+      a: 0.95,
+      s: (10 + Math.random()*12) * scale,
+      rot: Math.random()*Math.PI,
+      vr: (-0.06 + Math.random()*0.12),
     });
     if(hearts.length>260) hearts.shift();
   }
 
   function drawHeart(x,y,s,rot,a){
     ctx.save();
-    ctx.translate(x,y); ctx.rotate(rot);
+    ctx.translate(x,y);
+    ctx.rotate(rot);
     ctx.globalAlpha = a;
     ctx.beginPath();
     const k = s/16;
@@ -510,52 +470,87 @@
     ctx.closePath();
   }
 
-  // Fondo
+  // -------- Fondo con más detalles --------
   const clouds = Array.from({length:6}, (_,i) => ({
-    x: 120 + i*150, y: 95 + (i%3)*22, s: 0.9 + (i%4)*0.12, sp: 6 + (i%3)*4
+    x: 120 + i*150,
+    y: 95 + (i%3)*22,
+    s: 0.9 + (i%4)*0.12,
+    sp: 6 + (i%3)*4
   }));
-  const lanterns = [{x:220,y:300},{x:760,y:295}];
+
+  const lanterns = [
+    {x: 220, y: 300},
+    {x: 760, y: 295},
+  ];
 
   function drawCloud(cx, cy, s){
-    ctx.save(); ctx.translate(cx, cy); ctx.scale(s,s);
-    ctx.globalAlpha = 0.12; ctx.fillStyle = "white";
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.scale(s,s);
+    ctx.globalAlpha = 0.12;
+    ctx.fillStyle = "white";
     ctx.beginPath();
     ctx.ellipse(-30, 0, 34, 22, 0, 0, Math.PI*2);
     ctx.ellipse(0, -10, 42, 28, 0, 0, Math.PI*2);
     ctx.ellipse(35, 0, 30, 20, 0, 0, Math.PI*2);
     ctx.ellipse(5, 10, 46, 22, 0, 0, Math.PI*2);
-    ctx.fill(); ctx.restore();
+    ctx.fill();
+    ctx.restore();
   }
 
   function drawTree(x, baseY, s){
-    ctx.save(); ctx.translate(x, baseY); ctx.scale(s,s);
+    ctx.save();
+    ctx.translate(x, baseY);
+    ctx.scale(s,s);
+
     ctx.fillStyle = "rgba(0,0,0,.18)";
-    ctx.beginPath(); ctx.ellipse(0, 65, 80, 18, 0, 0, Math.PI*2); ctx.fill();
-    ctx.fillStyle = "rgba(255,255,255,.10)"; roundRect(-14, 0, 28, 80, 10); ctx.fill();
-    ctx.fillStyle = "rgba(255,77,141,.10)"; ctx.beginPath(); ctx.ellipse(0, -20, 80, 65, 0, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(0, 65, 80, 18, 0, 0, Math.PI*2);
+    ctx.fill();
+
+    ctx.fillStyle = "rgba(255,255,255,.10)";
+    roundRect(-14, 0, 28, 80, 10); ctx.fill();
+
+    ctx.fillStyle = "rgba(255,77,141,.10)";
+    ctx.beginPath(); ctx.ellipse(0, -20, 80, 65, 0, 0, Math.PI*2); ctx.fill();
     ctx.fillStyle = "rgba(124,92,255,.10)";
     ctx.beginPath(); ctx.ellipse(-30, -10, 60, 50, 0, 0, Math.PI*2); ctx.fill();
     ctx.beginPath(); ctx.ellipse(35, -5, 55, 45, 0, 0, Math.PI*2); ctx.fill();
+
     ctx.restore();
   }
 
   function drawLantern(x,y,glow=1){
     ctx.save();
-    ctx.strokeStyle = "rgba(255,255,255,.18)"; ctx.lineWidth = 4;
-    ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y-100); ctx.stroke();
-    ctx.fillStyle = "rgba(255,255,255,.14)"; roundRect(x-16, y-128, 32, 28, 8); ctx.fill();
+    ctx.strokeStyle = "rgba(255,255,255,.18)";
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x, y-100);
+    ctx.stroke();
+
+    ctx.fillStyle = "rgba(255,255,255,.14)";
+    roundRect(x-16, y-128, 32, 28, 8); ctx.fill();
+
     ctx.globalAlpha = 0.18 * glow;
     const g = ctx.createRadialGradient(x, y-114, 2, x, y-114, 60);
     g.addColorStop(0, "rgba(255,220,170,.9)");
     g.addColorStop(1, "rgba(255,220,170,0)");
-    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y-114, 60, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(x, y-114, 60, 0, Math.PI*2);
+    ctx.fill();
     ctx.restore();
   }
 
   function drawFence(){
-    ctx.save(); ctx.globalAlpha = 0.10; ctx.fillStyle = "white";
+    ctx.save();
+    ctx.globalAlpha = 0.10;
+    ctx.fillStyle = "white";
     const y = groundY - 6;
-    for(let x=0; x<=980; x+=26){ roundRect(x, y, 10, 40, 4); ctx.fill(); }
+    for(let x=0; x<=980; x+=26){
+      roundRect(x, y, 10, 40, 4); ctx.fill();
+    }
     ctx.globalAlpha = 0.08;
     roundRect(0, y+12, 980, 6, 6); ctx.fill();
     roundRect(0, y+28, 980, 6, 6); ctx.fill();
@@ -569,8 +564,11 @@
       const y = groundY + 22 + ((i*19)%16);
       ctx.globalAlpha = 0.14;
       ctx.fillStyle = (i%2===0) ? "rgba(255,77,141,.9)" : "rgba(124,92,255,.9)";
-      ctx.beginPath(); ctx.arc(x, y, 3, 0, Math.PI*2); ctx.fill();
-      ctx.globalAlpha = 0.08; ctx.fillStyle = "rgba(180,255,200,.9)";
+      ctx.beginPath();
+      ctx.arc(x, y, 3, 0, Math.PI*2);
+      ctx.fill();
+      ctx.globalAlpha = 0.08;
+      ctx.fillStyle = "rgba(180,255,200,.9)";
       ctx.fillRect(x-1, y, 2, 10);
     }
     ctx.restore();
@@ -586,7 +584,8 @@
     for(let i=0;i<48;i++){
       const x = (i*97)%980;
       const y = (i*43)%220;
-      ctx.globalAlpha = 0.22; ctx.fillStyle = "white";
+      ctx.globalAlpha = 0.22;
+      ctx.fillStyle = "white";
       ctx.fillRect(x, y, 2, 2);
     }
     ctx.globalAlpha = 1;
@@ -599,10 +598,13 @@
     ctx.beginPath(); ctx.arc(810, 110, 110, 0, Math.PI*2); ctx.fill();
     ctx.globalAlpha = 1;
 
-    ctx.fillStyle = "rgba(0,0,0,.18)"; ctx.fillRect(0, groundY, 980, 560-groundY);
+    ctx.fillStyle = "rgba(0,0,0,.18)";
+    ctx.fillRect(0, groundY, 980, 560-groundY);
 
     ctx.fillStyle = "rgba(255,255,255,.05)";
-    ctx.beginPath(); ctx.ellipse(490, groundY+35, 390, 58, 0, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(490, groundY+35, 390, 58, 0, 0, Math.PI*2);
+    ctx.fill();
 
     drawFence();
     drawTree(140, groundY-5, 1.1);
@@ -614,39 +616,53 @@
     drawFlowers();
 
     ctx.fillStyle = "rgba(255,255,255,.12)";
-    roundRect(bench.x - bench.w/2, bench.y, bench.w, bench.h, 10); ctx.fill();
+    roundRect(bench.x - bench.w/2, bench.y, bench.w, bench.h, 10);
+    ctx.fill();
     ctx.fillStyle = "rgba(255,255,255,.08)";
-    roundRect(bench.x - bench.w/2 + 40, bench.y-50, bench.w-80, 14, 10); ctx.fill();
+    roundRect(bench.x - bench.w/2 + 40, bench.y-50, bench.w-80, 14, 10);
+    ctx.fill();
 
     ctx.fillStyle = "rgba(255,255,255,.10)";
     roundRect(bench.x - bench.w/2 + 60, bench.y+12, 18, 60, 8); ctx.fill();
     roundRect(bench.x + bench.w/2 - 78, bench.y+12, 18, 60, 8); ctx.fill();
   }
 
+  // -------- Stickmans --------
   function drawStickman(p){
-    const headR = 16, line = 4;
+    const headR = 16;
+    const line = 4;
+
     let y = p.y;
-    const kneel = p.kneel, hug = p.hug, kiss = p.kiss;
+    const kneel = p.kneel;
+    const hug = p.hug;
+    const kiss = p.kiss;
 
     const phase = performance.now()/520 + (p.name==="A"?0:1.7);
     const idle = Math.sin(phase) * 2.2;
     y += idle * 0.6;
+
     y += lerp(0, 34, kneel);
 
     ctx.lineCap = "round";
     ctx.lineWidth = line;
     ctx.strokeStyle = "rgba(255,255,255,.92)";
 
-    ctx.beginPath(); ctx.arc(p.x, y - 48 + idle*0.35, headR, 0, Math.PI*2); ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(p.x, y - 48 + idle*0.35, headR, 0, Math.PI*2);
+    ctx.stroke();
 
-    ctx.globalAlpha = 0.7; ctx.fillStyle = "white";
+    ctx.globalAlpha = 0.7;
+    ctx.fillStyle = "white";
     ctx.beginPath();
     ctx.arc(p.x-6, y-52 + idle*0.25, 2, 0, Math.PI*2);
     ctx.arc(p.x+6, y-52 + idle*0.25, 2, 0, Math.PI*2);
     ctx.fill();
     ctx.globalAlpha = 1;
 
-    ctx.beginPath(); ctx.moveTo(p.x, y - 32); ctx.lineTo(p.x, y + 28); ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(p.x, y - 32);
+    ctx.lineTo(p.x, y + 28);
+    ctx.stroke();
 
     const armT = hug;
     const swing = (1-armT) * Math.sin(phase*1.2) * 1.8;
@@ -658,8 +674,10 @@
     const ay2 = lerp(y - 8 - swing, y + 10, armT);
 
     ctx.beginPath();
-    ctx.moveTo(p.x, y - 10); ctx.lineTo(ax1, ay1);
-    ctx.moveTo(p.x, y - 10); ctx.lineTo(ax2, ay2);
+    ctx.moveTo(p.x, y - 10);
+    ctx.lineTo(ax1, ay1);
+    ctx.moveTo(p.x, y - 10);
+    ctx.lineTo(ax2, ay2);
     ctx.stroke();
 
     const kneeUp = kneel;
@@ -691,6 +709,7 @@
     }
   }
 
+  // -------- Carta overlay --------
   function wrapText(text, x, y, maxWidth, lineHeight){
     const lines = text.split("\n");
     let cy = y;
@@ -715,7 +734,7 @@
     ctx.save();
     ctx.globalAlpha = 0.55 * openAmount;
     ctx.fillStyle = "black";
-    ctx.fillRect(0,0,BASE_W,BASE_H);
+    ctx.fillRect(0,0,980,560);
     ctx.restore();
 
     const w = 720, h = 420;
@@ -740,11 +759,12 @@
 
     ctx.fillStyle = "rgba(0,0,0,.55)";
     ctx.font = "13px system-ui, -apple-system, Segoe UI, Roboto, Arial";
-    ctx.fillText("Tocá para cerrar (o tocá durante lectura para mostrar todo)", x+28, y+h-24);
+    ctx.fillText("Click para cerrar (o click durante lectura para mostrar todo)", x+28, y+h-24);
 
     ctx.restore();
   }
 
+  // -------- Control de escena + FX disparados una vez --------
   let fired = { kiss:false, kneel:false, paper:false, final:false };
 
   function onSceneEnter(s){
@@ -754,7 +774,7 @@
     else if(s === SCENE.CARTA) setHint("Leyendo...");
     else if(s === SCENE.ABRAZO) setHint("🫂");
     else if(s === SCENE.FINAL) setHint("Te amo ❤️  (R para reiniciar)");
-    else setHint("Tocá para avanzar");
+    else setHint("Click para avanzar");
   }
 
   function advance(){
@@ -787,10 +807,15 @@
       targetBx = lerp(B.x, 510, e);
       targetKiss = e;
 
+      camTarget.x = 490;
       camTarget.y = 250;
       camTarget.zoom = 1.08;
 
-      if(!fired.kiss && tScene > 0.35){ fired.kiss = true; sfxKiss(); }
+      if(!fired.kiss && tScene > 0.35){
+        fired.kiss = true;
+        sfxKiss();
+      }
+
       if(tScene < 0.25 && Math.random() < 0.55) spawnHeart(490, 250, 0.8);
       if(tScene > 0.35 && Math.random() < 0.35){
         spawnHeart(490 + (-20 + Math.random()*40), 245 + (-10 + Math.random()*20), 0.7);
@@ -806,15 +831,24 @@
       camTarget.y = 285;
       camTarget.zoom = 1.10;
 
-      if(!fired.kneel && tScene > 0.35){ fired.kneel = true; sfxKneel(); }
+      if(!fired.kneel && tScene > 0.35){
+        fired.kneel = true;
+        sfxKneel();
+      }
+
       if(Math.random() < 0.12) spawnHeart(490, 240, 0.6);
     }
 
     if(scene === SCENE.CARTA){
       targetKneelA = 1;
+      camTarget.x = 490;
+      camTarget.y = 280;
       camTarget.zoom = 1.18;
 
-      if(!fired.paper && tScene > 0.08){ fired.paper = true; sfxPaper(); }
+      if(!fired.paper && tScene > 0.08){
+        fired.paper = true;
+        sfxPaper();
+      }
 
       typeTimer += dt;
       const cps = 52;
@@ -824,6 +858,7 @@
         if(next > typeIndex){
           typed = CARTA.slice(0, next);
           typeIndex = next;
+          if(next % 14 === 0) playTone({freq: 520 + (next%7)*30, type:"triangle", dur:0.03, vol:0.03, slideTo:480});
         }
       }
     }
@@ -835,6 +870,7 @@
       targetBx = lerp(B.x, 508, e);
       targetHug = e;
 
+      camTarget.x = 490;
       camTarget.y = 260;
       camTarget.zoom = 1.10;
 
@@ -843,10 +879,16 @@
 
     if(scene === SCENE.FINAL){
       targetAx = 472; targetBx = 508; targetHug = 1;
+
+      camTarget.x = 490;
       camTarget.y = 235;
       camTarget.zoom = 1.14;
 
-      if(!fired.final && tScene > 0.10){ fired.final = true; sfxFinal(); }
+      if(!fired.final && tScene > 0.10){
+        fired.final = true;
+        sfxFinal();
+      }
+
       if(Math.random() < 0.35) spawnHeart(490 + (-260 + Math.random()*520), 160 + (-30 + Math.random()*30), 1.0);
     }
 
@@ -855,8 +897,10 @@
 
     A.kiss  = damp(A.kiss,  targetKiss,   14, dt);
     B.kiss  = damp(B.kiss,  targetKiss,   14, dt);
+
     A.kneel = damp(A.kneel, targetKneelA, 12, dt);
-    B.kneel = damp(B.kneel, 0,            12, dt);
+    B.kneel = damp(B.kneel, 0,           12, dt);
+
     A.hug   = damp(A.hug,   targetHug,    12, dt);
     B.hug   = damp(B.hug,   targetHug,    12, dt);
 
@@ -865,7 +909,8 @@
     cam.zoom = damp(cam.zoom, camTarget.zoom, 10, dt);
 
     for(const h of hearts){
-      h.x += h.vx; h.y += h.vy;
+      h.x += h.vx;
+      h.y += h.vy;
       h.vy += 0.02;
       h.a -= 0.006;
       h.rot += h.vr;
@@ -876,7 +921,7 @@
   }
 
   function render(dt){
-    ctx.clearRect(0,0,BASE_W,BASE_H);
+    ctx.clearRect(0,0,980,560);
 
     ctx.save();
     ctx.translate(490, 280);
@@ -884,9 +929,40 @@
     ctx.translate(-cam.x, -cam.y);
 
     drawBackground(dt);
+
+    if(scene === SCENE.BESO){
+      const u = clamp(tScene/1.2, 0, 1);
+      const e = easeOut(u);
+      ctx.save();
+      ctx.globalAlpha = e;
+      ctx.textAlign = "center";
+      ctx.font = "900 40px system-ui, -apple-system, Segoe UI, Roboto, Arial";
+      ctx.lineWidth = 8;
+      ctx.strokeStyle = "rgba(0,0,0,.35)";
+      ctx.strokeText("MUAK 💋", 490, 210 - e*26);
+      ctx.fillStyle = "rgba(255,255,255,0.95)";
+      ctx.fillText("MUAK 💋", 490, 210 - e*26);
+      ctx.restore();
+      ctx.textAlign = "start";
+    }
+
     drawStickman({...A, x: ax});
     drawStickman({...B, x: bx});
-    for(const h of hearts) drawHeart(h.x, h.y, h.s, h.rot, h.a);
+
+    if(scene === SCENE.PROPUESTA){
+      const u = clamp((tScene-0.5)/0.8, 0, 1);
+      const e = easeOut(u);
+      ctx.save();
+      ctx.globalAlpha = 0.9 * e;
+      ctx.fillStyle = "rgba(255,255,255,.88)";
+      roundRect(ax + 26, A.y + 22, 44, 28, 8);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    for(const h of hearts){
+      drawHeart(h.x, h.y, h.s, h.rot, h.a);
+    }
 
     ctx.restore();
 
@@ -898,16 +974,21 @@
     if(scene === SCENE.FINAL){
       const u = clamp(tScene/1.2, 0, 1);
       const e = easeOut(u);
+
       ctx.save();
       ctx.globalAlpha = e;
+
       drawHeart(490, 170, 150, Math.sin(performance.now()/4000)*0.15, 0.95);
+
       ctx.fillStyle = "rgba(255,255,255,.95)";
       ctx.font = "900 58px system-ui, -apple-system, Segoe UI, Roboto, Arial";
       ctx.textAlign = "center";
       ctx.fillText("TE AMO", 490, 192);
+
       ctx.font = "600 16px system-ui, -apple-system, Segoe UI, Roboto, Arial";
       ctx.fillStyle = "rgba(255,255,255,.78)";
       ctx.fillText("Reiniciar: botón o tecla R", 490, 234);
+
       ctx.restore();
       ctx.textAlign = "start";
     }
@@ -916,76 +997,14 @@
   function loop(now){
     const dt = Math.min(0.05, (now-last)/1000);
     last = now;
-    if(!lockedPortrait) update(dt);
+    update(dt);
     render(dt);
     requestAnimationFrame(loop);
   }
 
-  // Input principal: acá también pedimos fullscreen + lock landscape
-  canvas.addEventListener("pointerdown", async (e) => {
-    e.preventDefault();
-    showHud();
-
-    // Intento de ocultar UI
-    hideBrowserUIAggressive();
-    if(!isFullscreen()){
-      await requestFullscreen();
-      await lockLandscape();
-    }
-
-    ensureAudio();
-    tryStartBgm();
-
-    if (lockedPortrait) return;
-    advance();
-  }, { passive:false });
-
-  document.getElementById("restart").addEventListener("click", () => {
-    ensureAudio(); sfxClick(); reset();
-  });
-
-  window.addEventListener("keydown", async (e) => {
-    showHud();
-    if(e.key === " " || e.key === "Enter"){
-      hideBrowserUIAggressive();
-      if(!isFullscreen()){
-        await requestFullscreen();
-        await lockLandscape();
-      }
-      ensureAudio(); tryStartBgm();
-      if (!lockedPortrait) advance();
-    }
-    if(e.key.toLowerCase() === "r"){
-      ensureAudio(); sfxClick(); reset();
-    }
-  });
-
-  function onResize(){
-    updateOrientationOverlay();
-    resizeCanvas();
-    hideBrowserUIAggressive();
-  }
-  window.addEventListener("resize", onResize);
-  window.addEventListener("orientationchange", () => setTimeout(onResize, 250));
-
-  window.addEventListener("load", () => {
-    onResize();
-    showHud();
-    tryStartBgm();
-    hideBrowserUIAggressive();
-  });
-
-  document.addEventListener("visibilitychange", () => {
-    if(!document.hidden){
-      tryStartBgm();
-      hideBrowserUIAggressive();
-    }
-  });
-
   onSceneEnter(scene);
   reset();
-  onResize();
-  showHud();
+  updateGateUI();
   requestAnimationFrame(loop);
 })();
 </script>
